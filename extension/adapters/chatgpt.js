@@ -64,6 +64,49 @@
     };
   }
 
+  // Experiment 001B.2: user-triggered, read-only geometry. Never authorizes extraction.
+  function inspectGeometry() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount !== 1)
+      return { hasSelection: false, rangeCount: selection?.rangeCount ?? 0 };
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const rounded = n => Math.round(n * 10) / 10;
+    const bounds = r => ({ top: rounded(r.top), bottom: rounded(r.bottom),
+      left: rounded(r.left), right: rounded(r.right), height: rounded(r.height) });
+    const selectors = {
+      copy: 'button[aria-label*="Copy"], button[data-testid*="copy"]',
+      audio: 'button[aria-label*="Read aloud"], button[aria-label*="Listen"]'
+    };
+    const actions = {};
+    for (const [kind, selector] of Object.entries(selectors)) {
+      const matches = [...document.querySelectorAll(selector)]
+        .filter(el => el.getClientRects().length && el.getBoundingClientRect().width > 0 &&
+                      el.getBoundingClientRect().height > 0)
+        .map(el => {
+          const r = el.getBoundingClientRect();
+          const dx = r.right < rect.left ? rect.left - r.right :
+            r.left > rect.right ? r.left - rect.right : 0;
+          const dy = r.bottom < rect.top ? rect.top - r.bottom :
+            r.top > rect.bottom ? r.top - rect.bottom : 0;
+          return { dx: rounded(dx), dy: rounded(dy),
+            distance: Math.hypot(dx, dy), box: bounds(r) };
+        }).sort((a, b) => a.distance - b.distance);
+      actions[kind] = { visibleMatches: matches.length,
+        nearest: matches.length ? { dx: matches[0].dx, dy: matches[0].dy,
+          box: matches[0].box } : null };
+    }
+    return {
+      hasSelection: true,
+      selectionRect: bounds(rect),
+      viewport: { width: window.innerWidth, height: window.innerHeight,
+        scrollX: rounded(window.scrollX), scrollY: rounded(window.scrollY),
+        devicePixelRatio: window.devicePixelRatio },
+      actions,
+      note: "Viewport geometry only. Action proximity does not establish authorship."
+    };
+  }
+
   function extractSelection() {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return { error: "Select text inside a completed assistant message first." };
@@ -85,6 +128,7 @@
     if (request?.type === "TREEHOUSE_STATUS") respond(probe());
     if (request?.type === "TREEHOUSE_EXTRACT_SELECTED") respond(extractSelection());
     if (request?.type === "TREEHOUSE_INSPECT_SELECTION") respond(inspectSelection());
+    if (request?.type === "TREEHOUSE_INSPECT_GEOMETRY") respond(inspectGeometry());
   });
   chrome.runtime.sendMessage({ type: "TREEHOUSE_PROBE", platform, host }).catch(() => {});
 })();

@@ -14,7 +14,7 @@ async function scan() {
       title.textContent = status.platform + ": " + (status.inputPresent ? "input detected" : "input not detected") + " (tab " + tab.id + ") ";
       li.append(title);
       const button = document.createElement("button");
-      button.textContent = "Extract selected";
+      button.textContent = "Capture selection";
       button.addEventListener("click", () => extract(tab.id, status.platform));
       li.append(button);
       if (status.platform === "chatgpt") {
@@ -40,7 +40,7 @@ async function extract(tabId, platform) {
   try {
     const result = await chrome.tabs.sendMessage(tabId, { type: "TREEHOUSE_EXTRACT_SELECTED" });
     if (!result || result.error) { p.textContent = (result && result.error) || "No response from adapter."; return; }
-    p.textContent = platform + " — selected excerpt (" + result.text.length + " characters). Completion NOT verified.";
+    p.textContent = platform + " — user-selected text (" + result.text.length + " characters). Authorship/completion NOT verified.";
     const pre = document.createElement("pre");
     pre.textContent = result.text; // Text-only: never interpret selected content as HTML.
     extraction.append(pre);

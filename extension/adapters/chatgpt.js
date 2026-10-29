@@ -82,7 +82,9 @@
     for (const [kind, selector] of Object.entries(selectors)) {
       const matches = [...document.querySelectorAll(selector)]
         .filter(el => el.getClientRects().length && el.getBoundingClientRect().width > 0 &&
-                      el.getBoundingClientRect().height > 0)
+                      el.getBoundingClientRect().height > 0 &&
+                      el.getBoundingClientRect().right > 0 && el.getBoundingClientRect().left < window.innerWidth &&
+                      el.getBoundingClientRect().bottom > 0 && el.getBoundingClientRect().top < window.innerHeight)
         .map(el => {
           const r = el.getBoundingClientRect();
           const dx = r.right < rect.left ? rect.left - r.right :
@@ -109,19 +111,19 @@
 
   function extractSelection() {
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return { error: "Select text inside a completed assistant message first." };
+    if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return { error: "Highlight text on the page before clicking Extract selected." };
     const range = selection.getRangeAt(0);
-    const start = range.startContainer.parentElement;
-    const end = range.endContainer.parentElement;
-    const bubble = start?.closest('[data-message-author-role="assistant"]');
-    if (!bubble || !bubble.contains(end)) return { error: "Selection must be inside one ChatGPT assistant message." };
+    const start = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer;
+    const end = range.endContainer.nodeType === Node.TEXT_NODE ? range.endContainer.parentElement : range.endContainer;
+    if (!start || !end || !document.body.contains(start) || !document.body.contains(end)) return { error: "Selection must be inside this page." };
+    if (start.closest('[contenteditable="true"], textarea, input') || end.closest('[contenteditable="true"], textarea, input')) return { error: "Selection inside an input or editor is not supported." };
     // Fail closed if there is evidence a response is still being generated.
     if (document.querySelector('[data-testid="stop-button"], button[aria-label*="Stop generating"], button[aria-label="Stop"]')) {
       return { error: "Generation may still be active; wait until the reply finishes." };
     }
     const text = selection.toString();
     if (!text.trim() || text.length > 12000) return { error: "Select non-empty text under 12,000 characters." };
-    return { platform, text, completion: "not-verified", warning: "Selected text only. Confirm this reply is complete before trusting it." };
+    return { platform, text, completion: "not-verified", warning: "Explicitly selected page text only; author and completion NOT verified. Review before any sharing." };
   }
 
   chrome.runtime.onMessage.addListener((request, _sender, respond) => {

@@ -61,3 +61,6 @@ Pivot: explicit highlighting plus clicking **Capture selection** authorizes capt
 Next field test: select harmless text in the ChatGPT tab and click Capture selection; verify text appears **only in popup**. Repeat in Gemini. Confirm that highlighting text in the editor is rejected. Only after these pass should we design an explicit, preview-and-confirm delivery stage.
 
 001B.2 geometry inspector remains available for optional investigation, with true viewport intersection now required for control visibility. Geometry never authorizes capture or sending.
+
+## Experiment 001C — first manual tab-to-tab draft handoff
+Select harmless text in the source tab, use Capture selection, then explicitly choose **Prepare draft in [destination]**. The extension transfers only the selected text to that specific tab's empty composer; it never submits a prompt. It refuses if the composer is nonempty, unavailable, or disabled, and attempts to verify inserted text. Browser contenteditable compatibility is untested and needs real Chrome trials on ChatGPT and Gemini. Each operation is user initiated; no session-wide monitoring, automatic reply capture, outgoing send, or persistent storage is added. Destination tab is activated after insertion to allow manual review and Send. Repeat in reverse direction after validating the first path.

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Treehouse — Experiment 001A",
-  "version": "0.0.1",
-  "description": "Local, read-only adapter detection for the first Treehouse handshake.",
+  "name": "Treehouse — Manual Transport Prototype",
+  "version": "0.1.0",
+  "description": "User-triggered text capture and draft-only handoff between ChatGPT and Gemini browser tabs.",
   "permissions": [
     "tabs"
   ],
@@ -10,7 +10,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Treehouse adapter status",
+    "default_title": "Treehouse manual handoff",
     "default_popup": "popup.html"
   },
   "content_scripts": [

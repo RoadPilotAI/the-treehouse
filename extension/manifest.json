@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Treehouse — Experiment 001A",
+  "version": "0.0.1",
+  "description": "Local, read-only adapter detection for the first Treehouse handshake.",
+  "permissions": [
+    "tabs"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Treehouse adapter status",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "adapters/chatgpt.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "adapters/gemini.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

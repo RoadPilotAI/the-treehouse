@@ -166,7 +166,7 @@
         if (!inserted) return { error: "Browser editor rejected insertion." };
       }
       const actual = target.matches("textarea") ? target.value : target.innerText;
-      if (actual !== text) return { error: "Draft did not match exactly; inspect the destination before doing anything else." };
+      if (actual !== text) return { reviewRequired: true, reason: "Draft was inserted, but the editor rendered it differently from the captured text. Review before sending; do not retry insertion.", expectedLength: text.length, observedLength: actual.length };
       return { ok: true, length: text.length, note: "Draft prepared but NOT submitted. Review and send manually." };
     } catch {
       return { error: "Composer insertion failed. Review destination; no send was attempted." };

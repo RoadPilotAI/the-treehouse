@@ -134,11 +134,25 @@
     const selectors = platform === "chatgpt"
       ? ['#prompt-textarea', '[contenteditable="true"][role="textbox"]', 'textarea']
       : ['rich-textarea [contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea'];
-    const target = selectors.map(selector => document.querySelector(selector)).find(Boolean);
-    if (!target || !target.getClientRects().length) return { error: "Composer not found or not visible." };
+    // Only target the actual editable control; an outer wrapper may contain
+    // visible UI labels or placeholder text even when the composer is empty.
+    const candidates = [...new Set(selectors.flatMap(selector => [...document.querySelectorAll(selector)]))];
+    const target = candidates.find(el =>
+      (el.matches("textarea") || el.isContentEditable) &&
+      el.getClientRects().length > 0);
+    if (!target) return { error: "Editable composer not found or not visible." };
     if (target.matches('[disabled], [aria-disabled="true"]')) return { error: "Composer is disabled." };
     const existing = target.matches("textarea") ? target.value : target.innerText;
-    if (existing?.trim()) return { error: "Destination composer is not empty; nothing was changed." };
+    if (existing?.trim()) return {
+      error: "Composer appears occupied; nothing was changed.",
+      diagnostic: {
+        tag: target.tagName,
+        isContentEditable: target.isContentEditable,
+        innerTextLength: (target.innerText || "").trim().length,
+        textContentLength: (target.textContent || "").trim().length,
+        childElementCount: target.childElementCount
+      }
+    };
     target.focus();
     try {
       if (target.matches("textarea")) {

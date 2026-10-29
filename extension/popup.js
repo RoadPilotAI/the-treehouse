@@ -17,6 +17,12 @@ async function scan() {
       button.textContent = "Extract selected";
       button.addEventListener("click", () => extract(tab.id, status.platform));
       li.append(button);
+      if (status.platform === "chatgpt") {
+        const inspectButton = document.createElement("button");
+        inspectButton.textContent = "Inspect selection";
+        inspectButton.addEventListener("click", () => inspect(tab.id));
+        li.append(inspectButton);
+      }
     } catch {
       li.textContent = "Tab " + tab.id + ": adapter unavailable; refresh this tab after loading the extension.";
     }
@@ -38,6 +44,17 @@ async function extract(tabId, platform) {
     note.textContent = result.warning;
     extraction.append(note);
   } catch { p.textContent = "Adapter unavailable; refresh the target tab and retry."; }
+}
+async function inspect(tabId) {
+  extraction.replaceChildren();
+  const pre = document.createElement("pre");
+  extraction.append(pre);
+  try {
+    const result = await chrome.tabs.sendMessage(tabId, { type: "TREEHOUSE_INSPECT_SELECTION" });
+    pre.textContent = JSON.stringify(result, null, 2);
+  } catch {
+    pre.textContent = "Adapter unavailable. Refresh the tab and retry.";
+  }
 }
 document.querySelector("#scan").addEventListener("click", scan);
 scan();

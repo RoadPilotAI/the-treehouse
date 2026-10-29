@@ -69,7 +69,7 @@ async function extract(tabId, platform) {
             { type: "TREEHOUSE_PREPARE_DRAFT", text: result.text });
           p.textContent = answer?.ok
             ? "Draft prepared in " + dest + ". Nothing was sent. Switch tabs and review."
-            : (answer?.error || "Destination rejected draft.");
+            : ((answer?.error || "Destination rejected draft.") + (answer?.diagnostic ? "\nComposer diagnostic (no message text): " + JSON.stringify(answer.diagnostic) : ""));
           if (answer?.ok) await chrome.tabs.update(target.id, { active: true });
         } catch {
           p.textContent = "Destination adapter unavailable; refresh target tab.";

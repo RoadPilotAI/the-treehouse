@@ -18,12 +18,14 @@
     const end = elementOf(range.endContainer);
     const common = elementOf(range.commonAncestorContainer);
     const chain = [];
-    for (let n = common, i = 0; n && i < 12; n = n.parentElement, i++) {
+    for (let n = common, i = 0; n && i < 25; n = n.parentElement, i++) {
       chain.push({
         tag: n.tagName,
         role: n.getAttribute("role"),
         testId: n.getAttribute("data-testid"),
-        authorRole: n.getAttribute("data-message-author-role")
+        authorRole: n.getAttribute("data-message-author-role"),
+        hasMessageId: n.hasAttribute("data-message-id"),
+        isArticle: n.tagName === "ARTICLE"
       });
     }
     const assistant = common?.closest('[data-message-author-role="assistant"]');
@@ -34,6 +36,8 @@
       endNodeType: range.endContainer.nodeType,
       commonAncestorTag: common?.tagName ?? null,
       ancestorChain: chain,
+      reachedDocumentRoot: chain.some(item => item.tag === "HTML"),
+      note: "closest() already searched all ancestors; 25 levels only reveals more structural context.",
       matchedAssistantContainer: Boolean(assistant),
       sameAssistantContainer: Boolean(assistant && assistant.contains(start) && assistant.contains(end))
     };

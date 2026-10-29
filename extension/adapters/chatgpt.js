@@ -8,38 +8,59 @@
     urlMatched: ["chatgpt.com", "chat.openai.com"].includes(host)
   });
 
-  // Structural diagnostics only. Never returns selected or surrounding text.
+  // Metadata-only fingerprinting. No message text, HTML, IDs or class values leave the tab.
   function inspectSelection() {
-    const s = window.getSelection();
-    if (!s || !s.rangeCount || s.isCollapsed) return { hasSelection: false, rangeCount: s?.rangeCount ?? 0 };
-    const range = s.getRangeAt(0);
-    const elementOf = node => node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
-    const start = elementOf(range.startContainer);
-    const end = elementOf(range.endContainer);
-    const common = elementOf(range.commonAncestorContainer);
-    const chain = [];
-    for (let n = common, i = 0; n && i < 25; n = n.parentElement, i++) {
-      chain.push({
-        tag: n.tagName,
-        role: n.getAttribute("role"),
-        testId: n.getAttribute("data-testid"),
-        authorRole: n.getAttribute("data-message-author-role"),
-        hasMessageId: n.hasAttribute("data-message-id"),
-        isArticle: n.tagName === "ARTICLE"
-      });
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount !== 1)
+      return { hasSelection: false, rangeCount: selection?.rangeCount ?? 0 };
+    const range = selection.getRangeAt(0);
+    const asElement = node => node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+    const common = asElement(range.commonAncestorContainer);
+    const start = asElement(range.startContainer);
+    const end = asElement(range.endContainer);
+    const markers = [];
+    let totalDepth = 0;
+    let reachedDocumentRoot = false;
+    const MAX_DEPTH = 256; // Safety bound, not an extraction limit.
+    for (let element = common; element && totalDepth < MAX_DEPTH; element = element.parentElement) {
+      const tag = element.tagName;
+      const role = element.getAttribute("role");
+      const author = element.getAttribute("data-message-author-role");
+      const isTurn = element.hasAttribute("data-testid") &&
+        /conversation.turn/i.test(element.getAttribute("data-testid") || "");
+      const hasCopyAction = Boolean(element.querySelector('button[aria-label*="Copy"], button[data-testid*="copy"]'));
+      const hasAudioAction = Boolean(element.querySelector('button[aria-label*="Read aloud"], button[aria-label*="Listen"]'));
+      if (tag !== "DIV" || role || author || isTurn || element.hasAttribute("data-message-id") ||
+          element.hasAttribute("data-testid") || hasCopyAction || hasAudioAction) {
+        markers.push({
+          depth: totalDepth,
+          tag,
+          role: ["article", "main", "list", "listitem"].includes(role) ? role : (role ? "other" : null),
+          authorRole: ["assistant", "user"].includes(author) ? author : (author ? "other" : null),
+          hasTestId: element.hasAttribute("data-testid"),
+          isConversationTurn: isTurn,
+          hasMessageId: element.hasAttribute("data-message-id"),
+          hasClass: element.hasAttribute("class"),
+          hasCopyAction,
+          hasAudioAction
+        });
+      }
+      totalDepth++;
+      if (tag === "HTML") { reachedDocumentRoot = true; break; }
     }
     const assistant = common?.closest('[data-message-author-role="assistant"]');
     return {
       hasSelection: true,
-      rangeCount: s.rangeCount,
+      rangeCount: selection.rangeCount,
       startNodeType: range.startContainer.nodeType,
       endNodeType: range.endContainer.nodeType,
       commonAncestorTag: common?.tagName ?? null,
-      ancestorChain: chain,
-      reachedDocumentRoot: chain.some(item => item.tag === "HTML"),
-      note: "closest() already searched all ancestors; 25 levels only reveals more structural context.",
+      totalAncestorDepth: totalDepth,
+      reachedDocumentRoot,
+      structuralMarkers: markers,
       matchedAssistantContainer: Boolean(assistant),
-      sameAssistantContainer: Boolean(assistant && assistant.contains(start) && assistant.contains(end))
+      sameAssistantContainer: Boolean(assistant && assistant.contains(start) && assistant.contains(end)),
+      note: "Copy/audio controls are clues only; they do not establish authorship or completion."
     };
   }
 

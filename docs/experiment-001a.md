@@ -54,3 +54,10 @@ The second field test kept the selection but showed 25 levels of mostly anonymou
 Chrome popup now exposes **Inspect geometry** for ChatGPT. It returns the selected range bounding rectangle, viewport dimensions, scroll offsets, pixel ratio, and nearest visible Copy / audio-labelled button bounding rectangles and nonnegative edge-to-edge X/Y gaps. It returns neither text nor DOM content. It **does not authorize extraction**, establish turn ownership, or send/store messages.
 
 Field test: select a short ordinary passage in a finished assistant reply, open popup, click **Inspect geometry**, retain JSON. Repeat for a user message. Then resize the window (or change zoom) and repeat both. Compare the relative placements; do not infer authorship from proximity alone. Results are viewport-dependent; selection may be offscreen, so select visible paragraphs. Check diagnostic output before sharing, as layout coordinates can reveal browsing layout.
+
+## Experiment 001B.3 — user-authorized local selection capture
+Pivot: explicit highlighting plus clicking **Capture selection** authorizes capturing the selected page text for local popup review only. It is **not** proof of message authorship or response completion and does **not** authorize automatic sending to another tab. The selected range must be nonempty, a single range, within the page, outside editable inputs, and no more than 12,000 characters. Existing stop-generation detection stays as a conservative block. No background sending, external requests, or persistence. The popup states these limits.
+
+Next field test: select harmless text in the ChatGPT tab and click Capture selection; verify text appears **only in popup**. Repeat in Gemini. Confirm that highlighting text in the editor is rejected. Only after these pass should we design an explicit, preview-and-confirm delivery stage.
+
+001B.2 geometry inspector remains available for optional investigation, with true viewport intersection now required for control visibility. Geometry never authorizes capture or sending.

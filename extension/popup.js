@@ -22,6 +22,10 @@ async function scan() {
         inspectButton.textContent = "Inspect selection";
         inspectButton.addEventListener("click", () => inspect(tab.id));
         li.append(inspectButton);
+        const geometryButton = document.createElement("button");
+        geometryButton.textContent = "Inspect geometry";
+        geometryButton.addEventListener("click", () => inspect(tab.id, "TREEHOUSE_INSPECT_GEOMETRY"));
+        li.append(geometryButton);
       }
     } catch {
       li.textContent = "Tab " + tab.id + ": adapter unavailable; refresh this tab after loading the extension.";
@@ -45,12 +49,12 @@ async function extract(tabId, platform) {
     extraction.append(note);
   } catch { p.textContent = "Adapter unavailable; refresh the target tab and retry."; }
 }
-async function inspect(tabId) {
+async function inspect(tabId, type = "TREEHOUSE_INSPECT_SELECTION") {
   extraction.replaceChildren();
   const pre = document.createElement("pre");
   extraction.append(pre);
   try {
-    const result = await chrome.tabs.sendMessage(tabId, { type: "TREEHOUSE_INSPECT_SELECTION" });
+    const result = await chrome.tabs.sendMessage(tabId, { type });
     pre.textContent = JSON.stringify(result, null, 2);
   } catch {
     pre.textContent = "Adapter unavailable. Refresh the tab and retry.";

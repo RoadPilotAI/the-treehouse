@@ -47,6 +47,37 @@ async function extract(tabId, platform) {
     const note = document.createElement("small");
     note.textContent = result.warning;
     extraction.append(note);
+    const options = document.createElement("div");
+    extraction.append(options);
+    const tabs = await chrome.tabs.query({});
+    const targets = tabs.filter(t => t.id !== tabId && (() => {
+      try { return hosts.has(new URL(t.url).hostname); } catch { return false; }
+    })());
+    if (!targets.length) {
+      const none = document.createElement("p");
+      none.textContent = "No other supported destination tab is open.";
+      options.append(none);
+    }
+    for (const target of targets) {
+      const b = document.createElement("button");
+      const dest = new URL(target.url).hostname === "gemini.google.com" ? "Gemini" : "ChatGPT";
+      b.textContent = "Prepare draft in " + dest + " (tab " + target.id + ")";
+      b.addEventListener("click", async () => {
+        b.disabled = true;
+        try {
+          const answer = await chrome.tabs.sendMessage(target.id,
+            { type: "TREEHOUSE_PREPARE_DRAFT", text: result.text });
+          p.textContent = answer?.ok
+            ? "Draft prepared in " + dest + ". Nothing was sent. Switch tabs and review."
+            : (answer?.error || "Destination rejected draft.");
+          if (answer?.ok) await chrome.tabs.update(target.id, { active: true });
+        } catch {
+          p.textContent = "Destination adapter unavailable; refresh target tab.";
+        }
+        b.disabled = false;
+      });
+      options.append(b);
+    }
   } catch { p.textContent = "Adapter unavailable; refresh the target tab and retry."; }
 }
 async function inspect(tabId, type = "TREEHOUSE_INSPECT_SELECTION") {

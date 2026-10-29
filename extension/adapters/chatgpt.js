@@ -8,6 +8,37 @@
     urlMatched: ["chatgpt.com", "chat.openai.com"].includes(host)
   });
 
+  // Structural diagnostics only. Never returns selected or surrounding text.
+  function inspectSelection() {
+    const s = window.getSelection();
+    if (!s || !s.rangeCount || s.isCollapsed) return { hasSelection: false, rangeCount: s?.rangeCount ?? 0 };
+    const range = s.getRangeAt(0);
+    const elementOf = node => node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+    const start = elementOf(range.startContainer);
+    const end = elementOf(range.endContainer);
+    const common = elementOf(range.commonAncestorContainer);
+    const chain = [];
+    for (let n = common, i = 0; n && i < 12; n = n.parentElement, i++) {
+      chain.push({
+        tag: n.tagName,
+        role: n.getAttribute("role"),
+        testId: n.getAttribute("data-testid"),
+        authorRole: n.getAttribute("data-message-author-role")
+      });
+    }
+    const assistant = common?.closest('[data-message-author-role="assistant"]');
+    return {
+      hasSelection: true,
+      rangeCount: s.rangeCount,
+      startNodeType: range.startContainer.nodeType,
+      endNodeType: range.endContainer.nodeType,
+      commonAncestorTag: common?.tagName ?? null,
+      ancestorChain: chain,
+      matchedAssistantContainer: Boolean(assistant),
+      sameAssistantContainer: Boolean(assistant && assistant.contains(start) && assistant.contains(end))
+    };
+  }
+
   function extractSelection() {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return { error: "Select text inside a completed assistant message first." };
@@ -28,6 +59,7 @@
   chrome.runtime.onMessage.addListener((request, _sender, respond) => {
     if (request?.type === "TREEHOUSE_STATUS") respond(probe());
     if (request?.type === "TREEHOUSE_EXTRACT_SELECTED") respond(extractSelection());
+    if (request?.type === "TREEHOUSE_INSPECT_SELECTION") respond(inspectSelection());
   });
   chrome.runtime.sendMessage({ type: "TREEHOUSE_PROBE", platform, host }).catch(() => {});
 })();

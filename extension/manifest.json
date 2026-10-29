@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Treehouse — Manual Transport Prototype",
+  "version": "0.1.0",
+  "description": "User-triggered text capture and draft-only handoff between ChatGPT and Gemini browser tabs.",
+  "permissions": [
+    "tabs"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Treehouse manual handoff",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "adapters/chatgpt.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "adapters/gemini.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

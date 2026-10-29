@@ -1,0 +1,97 @@
+const results = document.querySelector("#results");
+const extraction = document.querySelector("#extraction");
+const hosts = new Set(["chatgpt.com", "chat.openai.com", "gemini.google.com"]);
+async function scan() {
+  results.replaceChildren();
+  const tabs = await chrome.tabs.query({});
+  const targets = tabs.filter(t => { try { return hosts.has(new URL(t.url).hostname); } catch { return false; } });
+  if (!targets.length) { const li = document.createElement("li"); li.textContent = "No supported tabs detected."; results.append(li); return; }
+  for (const tab of targets) {
+    const li = document.createElement("li");
+    try {
+      const status = await chrome.tabs.sendMessage(tab.id, { type: "TREEHOUSE_STATUS" });
+      const title = document.createElement("span");
+      title.textContent = status.platform + ": " + (status.inputPresent ? "input detected" : "input not detected") + " (tab " + tab.id + ") ";
+      li.append(title);
+      const button = document.createElement("button");
+      button.textContent = "Capture selection";
+      button.addEventListener("click", () => extract(tab.id, status.platform));
+      li.append(button);
+      if (status.platform === "chatgpt") {
+        const inspectButton = document.createElement("button");
+        inspectButton.textContent = "Inspect selection";
+        inspectButton.addEventListener("click", () => inspect(tab.id));
+        li.append(inspectButton);
+        const geometryButton = document.createElement("button");
+        geometryButton.textContent = "Inspect geometry";
+        geometryButton.addEventListener("click", () => inspect(tab.id, "TREEHOUSE_INSPECT_GEOMETRY"));
+        li.append(geometryButton);
+      }
+    } catch {
+      li.textContent = "Tab " + tab.id + ": adapter unavailable; refresh this tab after loading the extension.";
+    }
+    results.append(li);
+  }
+}
+async function extract(tabId, platform) {
+  extraction.replaceChildren();
+  const p = document.createElement("p");
+  extraction.append(p);
+  try {
+    const result = await chrome.tabs.sendMessage(tabId, { type: "TREEHOUSE_EXTRACT_SELECTED" });
+    if (!result || result.error) { p.textContent = (result && result.error) || "No response from adapter."; return; }
+    p.textContent = platform + " — user-selected text (" + result.text.length + " characters). Authorship/completion NOT verified.";
+    const pre = document.createElement("pre");
+    pre.textContent = result.text; // Text-only: never interpret selected content as HTML.
+    extraction.append(pre);
+    const note = document.createElement("small");
+    note.textContent = result.warning;
+    extraction.append(note);
+    const options = document.createElement("div");
+    extraction.append(options);
+    const tabs = await chrome.tabs.query({});
+    const targets = tabs.filter(t => t.id !== tabId && (() => {
+      try { return hosts.has(new URL(t.url).hostname); } catch { return false; }
+    })());
+    if (!targets.length) {
+      const none = document.createElement("p");
+      none.textContent = "No other supported destination tab is open.";
+      options.append(none);
+    }
+    for (const target of targets) {
+      const b = document.createElement("button");
+      const dest = new URL(target.url).hostname === "gemini.google.com" ? "Gemini" : "ChatGPT";
+      b.textContent = "Prepare draft in " + dest + " (tab " + target.id + ")";
+      b.addEventListener("click", async () => {
+        b.disabled = true;
+        try {
+          const answer = await chrome.tabs.sendMessage(target.id,
+            { type: "TREEHOUSE_PREPARE_DRAFT", text: result.text });
+          p.textContent = answer?.ok
+            ? "Draft prepared in " + dest + ". Nothing was sent. Switch tabs and review."
+            : answer?.reviewRequired
+              ? "Draft is present in " + dest + ", but exact text verification failed. Review it before sending; do not click Prepare again."
+              : ((answer?.error || "Destination rejected draft.") + (answer?.diagnostic ? "\nComposer diagnostic (no message text): " + JSON.stringify(answer.diagnostic) : ""));
+          if (answer?.ok || answer?.reviewRequired) await chrome.tabs.update(target.id, { active: true });
+        } catch {
+          p.textContent = "Destination adapter unavailable; refresh target tab.";
+        }
+        b.disabled = false;
+      });
+      options.append(b);
+    }
+  } catch { p.textContent = "Adapter unavailable; refresh the target tab and retry."; }
+}
+async function inspect(tabId, type = "TREEHOUSE_INSPECT_SELECTION") {
+  extraction.replaceChildren();
+  const pre = document.createElement("pre");
+  extraction.append(pre);
+  try {
+    const result = await chrome.tabs.sendMessage(tabId, { type });
+    pre.textContent = JSON.stringify(result, null, 2);
+  } catch {
+    pre.textContent = "Adapter unavailable. Refresh the tab and retry.";
+  }
+}
+document.querySelector("#scan").addEventListener("click", scan);
+scan();

@@ -26,16 +26,31 @@
     emit("STOP_CLICK_OBSERVED", { signal: "trusted-stop-click" });
   };
   document.addEventListener("click", onStopClick, true);
+  let watcher;
+  let stopped = false;
+  const shutdown = () => {
+    if (stopped) return;
+    stopped = true;
+    if (pendingCompletion !== null) clearTimeout(pendingCompletion);
+    pendingCompletion = null;
+    watcher?.disconnect();
+    document.removeEventListener("click", onStopClick, true);
+  };
   const emit = (type, extra = {}) => {
+    if (stopped) return;
+    try {
+      if (!chrome.runtime?.id) { shutdown(); return; }
+    } catch { shutdown(); return; }
     // Emit only bounded metadata; no DOM text, HTML, node IDs, or URLs.
-    chrome.runtime.sendMessage({
+    try { chrome.runtime.sendMessage({
       type: "TREEHOUSE_LIFECYCLE",
       platform,
       event: type,
       sequence,
       elapsedMs: active ? Math.round(performance.now() - startedAt) : undefined,
       ...extra
-    }).catch(() => {});
+    }).catch(() => shutdown());
+    } catch { shutdown(); }
   };
   const signalPresent = () => {
     // Visible stop controls and busy markers are signals, never definitive evidence.
@@ -49,6 +64,7 @@
     pendingCompletion = null;
   };
   const inspect = (mutationCount = 0) => {
+    if (stopped) return;
     const busy = signalPresent();
     if (busy) {
       cancelPending();
@@ -91,12 +107,12 @@
     }
   };
   // The observer receives structural notifications. It never reads mutation text payloads.
-  const watcher = new MutationObserver(mutations => inspect(mutations.length));
+  watcher = new MutationObserver(mutations => inspect(mutations.length));
   watcher.observe(document.documentElement, {
     subtree: true, childList: true, attributes: true, characterData: true,
     attributeFilter: ["aria-busy", "aria-label", "aria-hidden", "data-testid", "data-test-id", "style", "class"]
   });
   // A generation already active when the extension loads is tagged as observed, not proven start.
   inspect();
-  window.addEventListener("pagehide", () => { cancelPending(); watcher.disconnect(); document.removeEventListener("click", onStopClick, true); }, { once: true });
+  window.addEventListener("pagehide", shutdown, { once: true });
 })();

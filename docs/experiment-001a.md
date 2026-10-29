@@ -1,31 +1,39 @@
-# Experiment 001A — First Handshake
+# Experiment 001A / 001B.1 — First Handshake
 
-**Status:** Phase 0, extension scaffold and read-only adapter detection. No message transport yet.
+**Status:** Phase 0 tab detection passed in Norm's Chrome screenshots. Phase 001B.1 selected-text extraction is implemented **but has not yet been tested in Chrome**. No message transport.
 
-## Objective
-Ultimately demonstrate one authorized round trip between existing ChatGPT and Gemini browser conversations, without manual copying. This branch **does not** perform that round trip.
+## What is implemented
+- Popup discovers existing ChatGPT and Gemini tabs and probes their inputs.
+- User explicitly highlights text inside ONE model response on its original tab, then opens Treehouse and clicks **Extract selected** for that tab.
+- The content script checks its provider-specific response container, a known stop-generation indicator, a 12,000-character ceiling, and returns selected text **only to the popup**.
+- The popup uses `textContent` (not HTML) and does not persist, relay, copy, or auto-send the text.
 
-## First test (manual, non-destructive)
-1. Download/clone this development branch locally.
-2. Open Chrome `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the `extension/` folder.
-3. Open or refresh existing ChatGPT and Gemini chat tabs. Avoid entering sensitive information for this experiment.
-4. Click the Treehouse extension icon; choose **Check open tabs**.
-5. Record whether it detects each supported tab and an input control, plus browser/OS and any errors. Do **not** interpret a successful probe as evidence that sending works.
-6. Disable/remove the extension when done if desired.
+**Not proved:** No robust guarantee of response completion. Indicators are only heuristics; output is marked `completion: not-verified`. The DOM structure and selection retention on opening the popup need real browser testing. If a selection is rejected, report it instead of broadening to arbitrary-page extraction.
 
-## Boundaries
-- Explicit domains only: chatgpt.com, chat.openai.com, gemini.google.com.
-- `tabs` permission is used for tab enumeration; content scripts only run on listed origins.
-- No credential capture, screenshot capture, OCR, external requests, message extraction, automatic sending, persisted transcript, or GitHub writes by the extension.
-- A service's applicable restrictions and supported interaction routes must be checked before adding submission automation.
-- Model-generated OVER/OUT text is **not** a security control. A coordinator-managed turn cap, stop control, and explicit initial consent are required for later sending.
-- The Gitcoin ledger, multi-provider orchestration and unattended operation remain out of scope.
+## Field test
+1. Update the local extension folder from branch `experiment/001a-extension-scaffold` (not `main`).
+2. On `chrome://extensions`, click **Reload** on Treehouse. Refresh ChatGPT and Gemini tabs.
+3. In a completed, non-sensitive AI message, select a short unique phrase with the mouse.
+4. Open the Treehouse popup. Click **Extract selected** next to the correct tab (the popup automatically scans).
+5. Compare the displayed excerpt character-for-character against the selection. Note line breaks and special characters.
+6. Repeat separately on the other platform. If the response-container selector does not match, the script should reject the extraction.
+7. Try selecting text in the input box or on an unrelated page; the adapter should reject it.
+8. Report exact status/error and browser version. Do not use private material for this experiment.
 
-## Next gates (require review before implementation)
-1. Verify detection on both live interfaces, including refreshed tabs.
-2. Evaluate permitted read-only extraction methods with dummy content.
-3. Add user-confirmed insertion into a draft field, without sending.
-4. Add a single authorized send and bounded reply, subject to platform rules and safety checks.
+## Safety and limits
+- No read-on-load, polling, automatic text transmission, writing to chat input, GitHub activity, storage, OCR, or external network calls.
+- Only explicit browser domains listed in the manifest.
+- No message selected? Nothing extracted.
+- Selected text is untrusted content, displayed with `textContent`.
+- The extension does not claim cryptographically verified identity or verified completed messages.
+- No automatic submission should be added until applicable platform rules are evaluated and explicit controls are implemented.
+- Radio tokens OVER/OUT are conversational; the extension would need its own enforced state machine for future transport.
 
-## For Gemini
-Please critique selector durability, permissions, correctness of the probe, failure handling, and whether this test is too broad or too narrow. A review does not require GitHub write access.
+## Requested Gemini review
+Inspect response-container selectors, selection persistence, potential false positives from streaming-state heuristics, privacy boundaries, and potential duplication. Recommend tests and improvements based on actual outcomes.
+
+## Future gates (not implemented)
+1. Verify selected-text extraction in both tabs.
+2. Test harmless draft insertion without pressing Send.
+3. Evaluate permitted sending mechanism.
+4. Supervised, bounded round-trip, with independent coordinator stop rules.

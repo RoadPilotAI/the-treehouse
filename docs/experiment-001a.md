@@ -37,3 +37,10 @@ Inspect response-container selectors, selection persistence, potential false pos
 2. Test harmless draft insertion without pressing Send.
 3. Evaluate permitted sending mechanism.
 4. Supervised, bounded round-trip, with independent coordinator stop rules.
+
+## Diagnostic follow-up after first extraction failure
+The first ChatGPT selected-text extraction returned a message-boundary rejection although Norm highlighted ordinary assistant paragraph text. This could reflect selector mismatch or selection structure; it is not yet diagnosed.
+
+The **Inspect selection** button for ChatGPT now returns **structural metadata only**: selection presence, range/node types, ancestor tag names and limited role/test-id/author-role attributes, and whether the current assistant selector matches. It does **not** return selected text or HTML. Nothing is sent or stored. This deliberately does not loosen the existing extraction gate.
+
+**Test:** select a short non-sensitive sentence in a completed ChatGPT response, open the popup, click **Inspect selection** by ChatGPT, and inspect the JSON report. Share only if comfortable: attributes may occasionally contain identifiers, so review before forwarding. Note whether `hasSelection` is true and `matchedAssistantContainer` is false. No completion verification is claimed.

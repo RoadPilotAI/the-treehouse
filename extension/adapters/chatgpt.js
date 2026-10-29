@@ -28,8 +28,8 @@
       const author = element.getAttribute("data-message-author-role");
       const isTurn = element.hasAttribute("data-testid") &&
         /conversation.turn/i.test(element.getAttribute("data-testid") || "");
-      const hasCopyAction = Boolean(element.querySelector('button[aria-label*="Copy"], button[data-testid*="copy"]'));
-      const hasAudioAction = Boolean(element.querySelector('button[aria-label*="Read aloud"], button[aria-label*="Listen"]'));
+      const hasCopyAction = totalDepth < 40 && Boolean(element.querySelector('button[aria-label*="Copy"], button[data-testid*="copy"]'));
+      const hasAudioAction = totalDepth < 40 && Boolean(element.querySelector('button[aria-label*="Read aloud"], button[aria-label*="Listen"]'));
       if (tag !== "DIV" || role || author || isTurn || element.hasAttribute("data-message-id") ||
           element.hasAttribute("data-testid") || hasCopyAction || hasAudioAction) {
         markers.push({
@@ -60,7 +60,7 @@
       structuralMarkers: markers,
       matchedAssistantContainer: Boolean(assistant),
       sameAssistantContainer: Boolean(assistant && assistant.contains(start) && assistant.contains(end)),
-      note: "Copy/audio controls are clues only; they do not establish authorship or completion."
+      note: "Action-control checks are limited to the first 40 ancestors; such controls are clues only, not proof of authorship or completion."
     };
   }
 

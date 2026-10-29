@@ -126,9 +126,43 @@
     return { platform, text, completion: "not-verified", warning: "Explicitly selected page text only; author and completion NOT verified. Review before any sharing." };
   }
 
+  // Deliberate draft-only delivery; cannot submit or replace existing text.
+  function prepareDraft(request) {
+    const text = request?.text;
+    if (typeof text !== "string" || !text.trim() || text.length > 12000)
+      return { error: "Draft must contain 1–12,000 characters." };
+    const selectors = platform === "chatgpt"
+      ? ['#prompt-textarea', '[contenteditable="true"][role="textbox"]', 'textarea']
+      : ['rich-textarea [contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea'];
+    const target = selectors.map(selector => document.querySelector(selector)).find(Boolean);
+    if (!target || !target.getClientRects().length) return { error: "Composer not found or not visible." };
+    if (target.matches('[disabled], [aria-disabled="true"]')) return { error: "Composer is disabled." };
+    const existing = target.matches("textarea") ? target.value : target.innerText;
+    if (existing?.trim()) return { error: "Destination composer is not empty; nothing was changed." };
+    target.focus();
+    try {
+      if (target.matches("textarea")) {
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+        if (!setter) return { error: "Text input not supported." };
+        setter.call(target, text);
+        target.dispatchEvent(new Event("input", { bubbles: true }));
+      } else {
+        // Browser editing action is closer to actual typing than assigning textContent.
+        const inserted = document.execCommand("insertText", false, text);
+        if (!inserted) return { error: "Browser editor rejected insertion." };
+      }
+      const actual = target.matches("textarea") ? target.value : target.innerText;
+      if (actual !== text) return { error: "Draft did not match exactly; inspect the destination before doing anything else." };
+      return { ok: true, length: text.length, note: "Draft prepared but NOT submitted. Review and send manually." };
+    } catch {
+      return { error: "Composer insertion failed. Review destination; no send was attempted." };
+    }
+  }
+
   chrome.runtime.onMessage.addListener((request, _sender, respond) => {
     if (request?.type === "TREEHOUSE_STATUS") respond(probe());
     if (request?.type === "TREEHOUSE_EXTRACT_SELECTED") respond(extractSelection());
+    if (request?.type === "TREEHOUSE_PREPARE_DRAFT") respond(prepareDraft(request));
     if (request?.type === "TREEHOUSE_INSPECT_SELECTION") respond(inspectSelection());
     if (request?.type === "TREEHOUSE_INSPECT_GEOMETRY") respond(inspectGeometry());
   });

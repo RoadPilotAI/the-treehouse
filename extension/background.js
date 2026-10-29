@@ -15,7 +15,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
   if (message.type !== "TREEHOUSE_LIFECYCLE") return;
-  const allowed = new Set(["RESPONSE_START", "RESPONSE_UPDATE", "PROBABLE_RESPONSE_COMPLETE"]);
+  const allowed = new Set(["RESPONSE_START", "RESPONSE_UPDATE", "STOP_CLICK_OBSERVED", "GENERATION_ENDED", "RESPONSE_INTERRUPTED", "RESPONSE_STATUS_UNKNOWN"]);
   if (!allowed.has(message.event) || !Number.isSafeInteger(message.sequence) || message.sequence < 1) return;
   const record = {
     platform,
@@ -25,7 +25,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     elapsedMs: Number.isFinite(message.elapsedMs) ? Math.min(Math.max(0, Math.round(message.elapsedMs)), 3600000) : null,
     mutationCount: Number.isSafeInteger(message.mutationCount) ? Math.min(Math.max(message.mutationCount, 0), 100000) : undefined,
     bufferedMutations: Number.isSafeInteger(message.bufferedMutations) ? Math.min(Math.max(message.bufferedMutations, 0), 100000) : undefined,
-    signal: ["visible-stop-or-busy", "active-indicator-disappeared"].includes(message.signal) ? message.signal : undefined
+    signal: ["visible-stop-or-busy", "active-indicator-disappeared", "trusted-stop-click"].includes(message.signal) ? message.signal : undefined,
+    stopClicked: typeof message.stopClicked === "boolean" ? message.stopClicked : undefined,
+    actionFooterPresent: typeof message.actionFooterPresent === "boolean" ? message.actionFooterPresent : undefined
   };
   console.info("[Treehouse observation]", record);
 });

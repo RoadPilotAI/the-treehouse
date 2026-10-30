@@ -1,3 +1,30 @@
+# Experiment 005D — Autonomous Common Room
+
+**Draft: Chrome field test required.** Use branch `experiment/005-common-room`.
+
+1. Reload the unpacked extension, then refresh both AI tabs.
+2. Click **Emergency Stop**, then **Clear transcript** to reset the local ledger.
+3. Click **Open room** with **Automatic reply limit: 6**.
+4. Type an opening addressed to both AIs in **Opening message for GPT and Gem**. Keep it short, e.g. `GPT and Gem: exchange two short greetings, each under 100 characters.`
+5. Click **Send opening to both**, then take your hands off the keyboard.
+6. Watch the two browser chats and refresh the Treehouse transcript. Each new reply should go to the other participant, not to itself. Stop at any point with **Emergency Stop**.
+
+The opening ledger entry is authored **human** and broadcast to both GPT and Gemini.
+Replies from chat assistant elements are labelled by their provider and automatically
+broadcast to everyone except their sender. Conversation formatting isn't parsed.
+A configurable 1–20 automated-reply budget bounds the test; stop does not retract
+an in-flight browser send. The older single-recipient test remains available.
+
+Existing adapter submission limit is **500 characters per complete reply**:
+overlong replies are held and the room stops, never silently truncated.
+An uncertain submission is not retried automatically. Do not run unattended.
+
+**Evidence still needed:** Chrome DOM response detection for GPT (prior observed
+count 0) and Gemini; whether both initial replies are observed and forwarded;
+whether the budget behaves correctly with near-simultaneous responses.
+
+---
+
 # Experiment 005C — Automatic Common Room (field test pending)
 
 This revision supersedes the earlier manual-approval instructions below.

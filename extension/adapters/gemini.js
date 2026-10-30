@@ -57,8 +57,49 @@
     }
   }
 
+
+  // Bounded PR #4 actuation: one user-authorized seed, never an AI reply.
+  function submitSeed(request) {
+    const text = request?.text;
+    if (typeof text !== "string" || !text.trim() || text.length > 500)
+      return { error: "Seed must contain 1–500 characters." };
+    const selectors = platform === "chatgpt"
+      ? ['#prompt-textarea[contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea']
+      : ['rich-textarea [contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea'];
+    const candidates = [...new Set(selectors.flatMap(selector => [...document.querySelectorAll(selector)]))];
+    const editor = candidates.find(el => (el.matches("textarea") || el.getAttribute("contenteditable") === "true") &&
+      el.getClientRects().length > 0);
+    if (!editor || editor.matches('[disabled], [aria-disabled="true"]'))
+      return { error: "Editable composer unavailable." };
+    const read = () => editor.matches("textarea") ? editor.value : editor.innerText;
+    if (read().trim()) return { error: "Composer occupied. Nothing inserted." };
+    editor.focus();
+    try {
+      if (editor.matches("textarea")) {
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+        if (!setter) return { error: "Native textarea setter unavailable." };
+        setter.call(editor, text);
+        editor.dispatchEvent(new Event("input", { bubbles: true }));
+      } else if (!document.execCommand("insertText", false, text)) {
+        return { error: "Browser rejected insertion." };
+      }
+      if (read() !== text) return { error: "Inserted draft not identical; no send attempted. Inspect tab." };
+      const sendSelector = platform === "chatgpt"
+        ? 'button[data-testid="send-button"]'
+        : 'button[aria-label="Send message"], button[aria-label="Send"], button[data-test-id="send-button"]';
+      const send = [...document.querySelectorAll(sendSelector)]
+        .filter(el => el.getClientRects().length && !el.disabled && el.getAttribute("aria-disabled") !== "true");
+      if (send.length !== 1) return { error: "Unique enabled Send button not verified; draft left for manual review." };
+      // Do not use Enter as a fallback; ambiguous UI = stop.
+      send[0].click();
+      return { ok: true, note: "Send click attempted; server acceptance not independently verified." };
+    } catch {
+      return { error: "Submission failed or uncertain; inspect tab before retrying." };
+    }
+  }
   chrome.runtime.onMessage.addListener((request, _sender, respond) => {
     if (request?.type === "TREEHOUSE_STATUS") respond(probe());
+    if (request?.type === "TREEHOUSE_SUBMIT_SEED") respond(submitSeed(request));
     if (request?.type === "TREEHOUSE_EXTRACT_SELECTED") respond(extractSelection());
     if (request?.type === "TREEHOUSE_PREPARE_DRAFT") respond(prepareDraft(request));
   });

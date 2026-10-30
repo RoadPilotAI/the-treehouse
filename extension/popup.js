@@ -95,3 +95,54 @@ async function inspect(tabId, type = "TREEHOUSE_INSPECT_SELECTION") {
 }
 document.querySelector("#scan").addEventListener("click", scan);
 scan();
+
+
+const seedDestination = document.querySelector("#seed-destination");
+const seedStatus = document.querySelector("#seed-status");
+async function refreshSeedControls() {
+  const tabs = await chrome.tabs.query({});
+  const destinations = tabs.filter(tab => {
+    try { return hosts.has(new URL(tab.url).hostname); } catch { return false; }
+  });
+  const previous = seedDestination.value;
+  seedDestination.replaceChildren();
+  for (const tab of destinations) {
+    const option = document.createElement("option");
+    option.value = String(tab.id);
+    option.textContent = (new URL(tab.url).hostname === "gemini.google.com" ? "Gemini" : "ChatGPT") + " (tab " + tab.id + ")";
+    seedDestination.append(option);
+  }
+  if (destinations.some(tab => String(tab.id) === previous)) seedDestination.value = previous;
+  const state = await chrome.runtime.sendMessage({ type: "TREEHOUSE_SESSION_STATUS" });
+  seedStatus.textContent = state.state + (state.reason ? " — " + state.reason : "") + (state.diagnostic ? "\nDiagnostic: " + JSON.stringify(state.diagnostic, null, 2) : "");
+}
+document.querySelector("#seed-start").addEventListener("click", async () => {
+  const destinationTabId = Number(seedDestination.value);
+  const seed = document.querySelector("#seed-text").value;
+  const tabs = await chrome.tabs.query({});
+  const destination = tabs.find(t => t.id === destinationTabId);
+  const destinationProvider = destination && new URL(destination.url).hostname === "gemini.google.com" ? "gemini" : "chatgpt";
+  const source = tabs.find(t => t.id !== destinationTabId && (() => {
+    try {
+      const h = new URL(t.url).hostname;
+      return destinationProvider === "gemini" ? ["chatgpt.com", "chat.openai.com"].includes(h) : h === "gemini.google.com";
+    } catch { return false; }
+  })());
+  if (!source) { seedStatus.textContent = "Open the other provider in a second tab."; return; }
+  if (!window.confirm("Start a bounded session and attempt to SEND one harmless test message to the selected tab?")) return;
+  seedStatus.textContent = "Attempting one authorized seed…";
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "TREEHOUSE_SESSION_START", sourceTabId: source.id, destinationTabId, seed
+    });
+    seedStatus.textContent = (response.error || (response.state + " — " + (response.reason || "seed attempted"))) + (response.diagnostic ? "\nDiagnostic: " + JSON.stringify(response.diagnostic, null, 2) : "");
+    await chrome.tabs.update(destinationTabId, { active: true });
+  } catch { seedStatus.textContent = "Unable to contact coordinator. No retry attempted."; }
+});
+document.querySelector("#seed-stop").addEventListener("click", async () => {
+  try {
+    const result = await chrome.runtime.sendMessage({ type: "TREEHOUSE_SESSION_STOP" });
+    seedStatus.textContent = result.state + " — " + (result.reason || "");
+  } catch { seedStatus.textContent = "Stop request failed; reload extension and inspect destination."; }
+});
+refreshSeedControls().catch(() => { seedStatus.textContent = "Coordinator unavailable."; });

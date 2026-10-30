@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Treehouse — Manual Transport Prototype",
-  "version": "0.2.0",
-  "description": "Manual draft transport plus observation-only response lifecycle telemetry (experimental).",
+  "version": "0.3.1",
+  "description": "Experimental user-authorized one-seed actuation; no autonomous reply relay.",
   "permissions": [
     "tabs"
   ],
@@ -10,7 +10,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Treehouse manual handoff",
+    "default_title": "Treehouse bounded handshake",
     "default_popup": "popup.html"
   },
   "content_scripts": [
@@ -20,6 +20,7 @@
         "https://chat.openai.com/*"
       ],
       "js": [
+        "plain-text.js",
         "adapters/chatgpt.js",
         "observer.js"
       ],
@@ -30,6 +31,7 @@
         "https://gemini.google.com/*"
       ],
       "js": [
+        "plain-text.js",
         "adapters/gemini.js",
         "observer.js"
       ],

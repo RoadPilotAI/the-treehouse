@@ -173,8 +173,88 @@
     }
   }
 
+
+  // Bounded PR #4 actuation: one user-authorized seed, never an AI reply.
+  async function submitSeed(request) {
+    const text = request?.text;
+    if (typeof text !== "string" || !text.trim() || text.length > 500)
+      return { error: "Seed must contain 1–500 characters." };
+    const selectors = platform === "chatgpt"
+      ? ['#prompt-textarea[contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea']
+      : ['rich-textarea [contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea'];
+    const candidates = [...new Set(selectors.flatMap(selector => [...document.querySelectorAll(selector)]))];
+    const editor = candidates.find(el => (el.matches("textarea") || el.getAttribute("contenteditable") === "true") &&
+      el.getClientRects().length > 0);
+    if (!editor || editor.matches('[disabled], [aria-disabled="true"]'))
+      return { error: "Editable composer unavailable." };
+    const plain = globalThis.TreehousePlainText;
+    if (!plain) return { error: "Plain-text module unavailable; reload extension and refresh tab." };
+    const read = () => plain.fromEditor(editor);
+    if (read().trim()) return { error: "Composer occupied. Nothing inserted.",
+      diagnostic: { selectedEditorTag: editor.tagName.toLowerCase(),
+        selectedEditorId: (editor.id || "").slice(0, 60),
+        observedLength: read().length } };
+    editor.focus();
+    try {
+      if (editor.matches("textarea")) {
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+        if (!setter) return { error: "Native textarea setter unavailable." };
+        setter.call(editor, text);
+        editor.dispatchEvent(new Event("input", { bubbles: true }));
+      } else if (!document.execCommand("insertText", false, text)) {
+        return { error: "Browser rejected insertion." };
+      }
+      const expected = plain.canonical(text);
+      const observed = read();
+      if (observed !== expected) return {
+        error: "Plain-text integrity mismatch; no send attempted. Inspect tab.",
+        diagnostic: plain.diagnose(expected, observed)
+      };
+      // Look inside the editor's own form after insertion. No global button guessing.
+      await new Promise(resolve => setTimeout(resolve, 350));
+      const form = editor.closest("form");
+      const controls = form ? [...form.querySelectorAll('button, input[type="submit"]')] : [];
+      const eligible = controls.filter(el =>
+        el.getClientRects().length && !el.disabled &&
+        el.getAttribute("aria-disabled") !== "true" &&
+        (el.getAttribute("type") === "submit" ||
+         /^(send|submit)( message)?$/i.test(el.getAttribute("aria-label") || "")));
+      const diagnostic = {
+        hasComposerForm: Boolean(form),
+        totalFormControls: controls.length,
+        eligibleSubmitControls: eligible.length,
+        formControls: controls.slice(0, 12).map(el => ({
+          tag: el.tagName.toLowerCase(),
+          type: (el.getAttribute("type") || "").slice(0, 24),
+          ariaLabel: (el.getAttribute("aria-label") || "").slice(0, 70),
+          testId: (el.getAttribute("data-testid") || "").slice(0, 70),
+          disabled: Boolean(el.disabled),
+          ariaDisabled: el.getAttribute("aria-disabled")
+        }))
+      };
+      if (!form || eligible.length !== 1) return {
+        error: "ChatGPT form submission target not verified; draft preserved.",
+        diagnostic
+      };
+      // The native form API invokes the submit event, unlike form.submit().
+      // The sole eligible control is used only within this composer form.
+      form.requestSubmit(eligible[0]);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (read().trim()) return {
+        error: "Form submission attempted but composer still contains text; no retry.",
+        diagnostic
+      };
+      return { ok: true, note: "Composer cleared after requestSubmit; receipt not independently verified." };
+    } catch {
+      return { error: "Submission failed or uncertain; inspect tab before retrying." };
+    }
+  }
   chrome.runtime.onMessage.addListener((request, _sender, respond) => {
     if (request?.type === "TREEHOUSE_STATUS") respond(probe());
+    if (request?.type === "TREEHOUSE_SUBMIT_SEED") {
+      submitSeed(request).then(respond).catch(() => respond({ error: "Submission status uncertain; inspect destination." }));
+      return true;
+    }
     if (request?.type === "TREEHOUSE_EXTRACT_SELECTED") respond(extractSelection());
     if (request?.type === "TREEHOUSE_PREPARE_DRAFT") respond(prepareDraft(request));
     if (request?.type === "TREEHOUSE_INSPECT_SELECTION") respond(inspectSelection());

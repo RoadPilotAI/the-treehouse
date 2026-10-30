@@ -135,7 +135,7 @@ document.querySelector("#seed-start").addEventListener("click", async () => {
     const response = await chrome.runtime.sendMessage({
       type: "TREEHOUSE_SESSION_START", sourceTabId: source.id, destinationTabId, seed
     });
-    seedStatus.textContent = response.error || (response.state + " — " + (response.reason || "seed attempted"));
+    seedStatus.textContent = (response.error || (response.state + " — " + (response.reason || "seed attempted"))) + (response.diagnostic ? " — " + JSON.stringify(response.diagnostic) : "");
     await chrome.tabs.update(destinationTabId, { active: true });
   } catch { seedStatus.textContent = "Unable to contact coordinator. No retry attempted."; }
 });

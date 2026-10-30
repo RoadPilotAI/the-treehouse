@@ -18,13 +18,16 @@
         assistantTurns:document.querySelectorAll('h4[data-conversation-role="assistant"]').length
       }:undefined};
     }
-    const body=platform==="gemini"
-      ?el.querySelector(".model-response-text, message-content, .markdown")||el
-      :el.querySelector(".markdown, [data-message-content], .prose")||el;
-    const text=platform==="gpt" && body===el
-      ? [...el.children].filter(child=>child!==el.querySelector('h4[data-conversation-role="assistant"]')).map(child=>child.innerText||"").join("\n").trim()
-      : (body.innerText||body.textContent||"").trim();
-    return {count:all.length,text};
+    if(platform==="gpt"){
+      const heading=el.querySelector('h4[data-conversation-role="assistant"]');
+      // Use the observed turn wrapper, not a nested formatting selector.
+      const text=[...el.children].filter(child=>child!==heading)
+        .map(child=>child.innerText||child.textContent||"").join("\n").trim();
+      return {count:all.length,text,
+        messageId:el.getAttribute("data-chatgpt-search-message-ids")||null};
+    }
+    const body=el.querySelector(".model-response-text, message-content, .markdown")||el;
+    return {count:all.length,text:(body.innerText||body.textContent||"").trim()};
   }
   chrome.runtime.onMessage.addListener((request,_sender,respond)=>{
     if(request?.type==="TREEHOUSE_READ_ASSISTANT_REPLY")respond(snapshot());

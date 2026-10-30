@@ -61,8 +61,8 @@
   // Bounded PR #4 actuation: one user-authorized seed, never an AI reply.
   async function submitSeed(request) {
     const text = request?.text;
-    if (typeof text !== "string" || !text.trim() || text.length > 500)
-      return { error: "Seed must contain 1–500 characters." };
+    if (typeof text !== "string" || !text.trim() || text.length > 12000)
+      return { error: "Message must contain 1–12,000 characters." };
     const selectors = platform === "chatgpt"
       ? ['#prompt-textarea[contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea']
       : ['rich-textarea [contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea'];

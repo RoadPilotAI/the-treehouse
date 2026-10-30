@@ -169,11 +169,20 @@ async function roomRefresh(){
   }
 }
 document.querySelector("#room-start").addEventListener("click",async()=>{
-  roomStatus.textContent=JSON.stringify(await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_START"}));
+  roomStatus.textContent=JSON.stringify(await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_START",autoLimit:Number(document.querySelector("#room-limit").value)}));
   await roomRefresh();
 });
 document.querySelector("#room-stop").addEventListener("click",async()=>{
   roomStatus.textContent=JSON.stringify(await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_STOP"}));
+});
+document.querySelector("#room-open-send").addEventListener("click",async()=>{
+  const text=document.querySelector("#room-opening").value;
+  if(!text.trim())return;
+  if(!window.confirm("Send opening message to BOTH GPT and Gemini and start bounded automatic replies?"))return;
+  const result=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_OPENING",text});
+  roomStatus.textContent=JSON.stringify(result);
+  if(result.ok)document.querySelector("#room-opening").value="";
+  await roomRefresh();
 });
 document.querySelector("#room-post").addEventListener("click",async()=>{
   const sender=document.querySelector("#room-sender").value;

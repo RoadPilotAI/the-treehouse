@@ -210,67 +210,41 @@
         error: "Plain-text integrity mismatch; no send attempted. Inspect tab.",
         diagnostic: plain.diagnose(expected, observed)
       };
-      const sendSelector = platform === "chatgpt"
-        ? 'button[data-testid="send-button"]'
-        : 'button[aria-label="Send message"], button[aria-label="Send"], button[data-test-id="send-button"]';
-      const send = [...document.querySelectorAll(sendSelector)]
-        .filter(el => el.getClientRects().length && !el.disabled && el.getAttribute("aria-disabled") !== "true");
-      if (send.length !== 1) {
-        const rect = editor.getBoundingClientRect();
-        const controls = [...document.querySelectorAll('button, [role="button"], [type="submit"]')]
-          .filter(el => el.getClientRects().length && !editor.contains(el))
-          .map(el => {
-            const r = el.getBoundingClientRect();
-            return { el, distance: Math.round(Math.hypot(
-              Math.max(0, rect.left-r.right, r.left-rect.right),
-              Math.max(0, rect.top-r.bottom, r.top-rect.bottom)
-            )) };
-          }).filter(item => item.distance < 190)
-          .sort((a,b) => a.distance-b.distance).slice(0,16)
-          .map(({el,distance}) => ({
-            tag: el.tagName.toLowerCase(),
-            ariaLabel: (el.getAttribute("aria-label") || "").slice(0,80),
-            title: (el.getAttribute("title") || "").slice(0,70),
-            testId: (el.getAttribute("data-testid") || "").slice(0,70),
-            type: (el.getAttribute("type") || "").slice(0,30),
-            disabled: Boolean(el.disabled),
-            ariaDisabled: el.getAttribute("aria-disabled"),
-            distancePx: distance
-          }));
-        return { error: "ChatGPT Send control not verified; draft left for manual review.",
-          diagnostic: {
-            matchedSendButtons: send.length,
-            nearbyControls: controls,
-            composerControls: (() => {
-              // Probe the actual composer subtree, including icon-only controls.
-              // Structural metadata only; no user text, HTML, or click.
-              const root = editor.closest("form") ||
-                editor.closest('[data-testid*="composer"]') ||
-                editor.parentElement?.parentElement?.parentElement;
-              if (!root) return [];
-              return [...root.querySelectorAll('button, [role="button"], [type="submit"]')]
-                .filter(el => !editor.contains(el) && el.getClientRects().length)
-                .slice(0, 24).map(el => ({
-                  tag: el.tagName.toLowerCase(),
-                  ariaLabel: (el.getAttribute("aria-label") || "").slice(0, 80),
-                  testId: (el.getAttribute("data-testid") || "").slice(0, 80),
-                  type: (el.getAttribute("type") || "").slice(0, 24),
-                  title: (el.getAttribute("title") || "").slice(0, 60),
-                  classes: [...el.classList].slice(0, 5).map(x => x.slice(0, 48)),
-                  disabled: Boolean(el.disabled),
-                  ariaDisabled: el.getAttribute("aria-disabled"),
-                  hasSvg: Boolean(el.querySelector("svg")),
-                  svgDataTestId: (el.querySelector("svg")?.getAttribute("data-testid") || "").slice(0, 60)
-                }));
-            })()
-          } };
-      }
-      // Do not use Enter as a fallback; ambiguous UI = stop.
-      send[0].click();
-      // A synthetic click may be ignored by the host UI. Never equate click() with sending.
-      await new Promise(resolve => setTimeout(resolve, 900));
-      if (read().trim()) return { error: "Send click attempted but draft remains in composer. Not confirmed sent; inspect tab. DO NOT retry automatically." };
-      return { ok: true, note: "Composer cleared after Send click; host acceptance still not independently verified." };
+      // Look inside the editor's own form after insertion. No global button guessing.
+      await new Promise(resolve => setTimeout(resolve, 350));
+      const form = editor.closest("form");
+      const controls = form ? [...form.querySelectorAll('button, input[type="submit"]')] : [];
+      const eligible = controls.filter(el =>
+        el.getClientRects().length && !el.disabled &&
+        el.getAttribute("aria-disabled") !== "true" &&
+        (el.getAttribute("type") === "submit" ||
+         /^(send|submit)( message)?$/i.test(el.getAttribute("aria-label") || "")));
+      const diagnostic = {
+        hasComposerForm: Boolean(form),
+        totalFormControls: controls.length,
+        eligibleSubmitControls: eligible.length,
+        formControls: controls.slice(0, 12).map(el => ({
+          tag: el.tagName.toLowerCase(),
+          type: (el.getAttribute("type") || "").slice(0, 24),
+          ariaLabel: (el.getAttribute("aria-label") || "").slice(0, 70),
+          testId: (el.getAttribute("data-testid") || "").slice(0, 70),
+          disabled: Boolean(el.disabled),
+          ariaDisabled: el.getAttribute("aria-disabled")
+        }))
+      };
+      if (!form || eligible.length !== 1) return {
+        error: "ChatGPT form submission target not verified; draft preserved.",
+        diagnostic
+      };
+      // The native form API invokes the submit event, unlike form.submit().
+      // The sole eligible control is used only within this composer form.
+      form.requestSubmit(eligible[0]);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (read().trim()) return {
+        error: "Form submission attempted but composer still contains text; no retry.",
+        diagnostic
+      };
+      return { ok: true, note: "Composer cleared after requestSubmit; receipt not independently verified." };
     } catch {
       return { error: "Submission failed or uncertain; inspect tab before retrying." };
     }

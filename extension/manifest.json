@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Treehouse — Manual Transport Prototype",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Experimental user-authorized one-seed actuation; no autonomous reply relay.",
   "permissions": [
     "tabs"
@@ -21,6 +21,7 @@
       ],
       "js": [
         "adapters/chatgpt.js",
+        "plain-text.js",
         "observer.js"
       ],
       "run_at": "document_idle"
@@ -31,6 +32,7 @@
       ],
       "js": [
         "adapters/gemini.js",
+        "plain-text.js",
         "observer.js"
       ],
       "run_at": "document_idle"

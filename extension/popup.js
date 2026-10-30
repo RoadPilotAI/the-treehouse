@@ -114,7 +114,7 @@ async function refreshSeedControls() {
   }
   if (destinations.some(tab => String(tab.id) === previous)) seedDestination.value = previous;
   const state = await chrome.runtime.sendMessage({ type: "TREEHOUSE_SESSION_STATUS" });
-  seedStatus.textContent = state.state + (state.reason ? " — " + state.reason : "");
+  seedStatus.textContent = state.state + (state.reason ? " — " + state.reason : "") + (state.diagnostic ? "\nDiagnostic: " + JSON.stringify(state.diagnostic, null, 2) : "");
 }
 document.querySelector("#seed-start").addEventListener("click", async () => {
   const destinationTabId = Number(seedDestination.value);
@@ -135,7 +135,7 @@ document.querySelector("#seed-start").addEventListener("click", async () => {
     const response = await chrome.runtime.sendMessage({
       type: "TREEHOUSE_SESSION_START", sourceTabId: source.id, destinationTabId, seed
     });
-    seedStatus.textContent = (response.error || (response.state + " — " + (response.reason || "seed attempted"))) + (response.diagnostic ? " — " + JSON.stringify(response.diagnostic) : "");
+    seedStatus.textContent = (response.error || (response.state + " — " + (response.reason || "seed attempted"))) + (response.diagnostic ? "\nDiagnostic: " + JSON.stringify(response.diagnostic, null, 2) : "");
     await chrome.tabs.update(destinationTabId, { active: true });
   } catch { seedStatus.textContent = "Unable to contact coordinator. No retry attempted."; }
 });

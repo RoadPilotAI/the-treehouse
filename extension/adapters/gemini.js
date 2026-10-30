@@ -84,6 +84,7 @@
         return { error: "Browser rejected insertion." };
       }
       if (read() !== text) return { error: "Inserted draft not identical; no send attempted. Inspect tab." };
+      await new Promise(resolve => setTimeout(resolve, 650));
       const sendSelector = platform === "chatgpt"
         ? 'button[data-testid="send-button"]'
         : 'button[aria-label="Send message"], button[aria-label="Send"], button[aria-label="Submit"], button[title="Submit"], button[type="submit"], button[data-test-id="send-button"]';
@@ -131,6 +132,17 @@
             distancePx: Math.round(distance)
           }));
         diagnostic.nearbyControls = nearby;
+        const parent = editor.closest("rich-textarea")?.parentElement?.parentElement || editor.parentElement?.parentElement?.parentElement;
+        diagnostic.composerRegion = parent ? [...parent.querySelectorAll('button, [role="button"], [type="submit"], [tabindex]')]
+          .filter(el => el !== editor && !editor.contains(el) && el.getClientRects().length)
+          .slice(0, 24).map(el => ({
+            tag: el.tagName.toLowerCase(), ariaLabel: (el.getAttribute("aria-label") || "").slice(0, 70),
+            title: (el.getAttribute("title") || "").slice(0, 70),
+            testId: (el.getAttribute("data-test-id") || "").slice(0, 70),
+            classes: [...el.classList].slice(0, 5).map(x => x.slice(0, 40)),
+            disabled: Boolean(el.disabled), ariaDisabled: el.getAttribute("aria-disabled"),
+            hasIcon: Boolean(el.querySelector("svg, mat-icon"))
+          })) : null;
         return { error: "Send control not verified. Draft left untouched for manual send.", diagnostic };
       }
       // Do not use Enter as a fallback; ambiguous UI = stop.

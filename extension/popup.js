@@ -152,7 +152,7 @@ const roomStatus=document.querySelector("#room-status");
 const roomTranscript=document.querySelector("#room-transcript");
 async function roomRefresh(){
   const state=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_STATUS"});
-  roomStatus.textContent=state.enabled?"Room open":"Room stopped";
+  roomStatus.textContent=state.enabled?"Room open":"Room stopped — "+(state.stopReason||"reason not recorded");
   roomTranscript.replaceChildren();
   for(const msg of state.messages||[]){
     const p=document.createElement("p");

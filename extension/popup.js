@@ -184,5 +184,11 @@ document.querySelector("#room-post").addEventListener("click",async()=>{
   if(result.ok)document.querySelector("#room-text").value="";
   await roomRefresh();
 });
+document.querySelector("#room-clear").addEventListener("click",async()=>{
+  if(!window.confirm("Clear the Treehouse transcript? Stop the room first. This does not delete messages in GPT or Gemini."))return;
+  const result=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_CLEAR"});
+  await roomRefresh();
+  roomStatus.textContent=result.ok?"Transcript cleared":(result.error||"Clear failed");
+});
 document.querySelector("#room-refresh").addEventListener("click",roomRefresh);
 roomRefresh().catch(()=>{roomStatus.textContent="Room coordinator unavailable";});

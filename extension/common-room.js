@@ -65,6 +65,25 @@ async function roomCommand(request){
     enabled:room.enabled,participants:room.participants,
     messages:room.messages.map(({id,sequence,sender,addressee,text,deliveries,heldReply})=>({
       id,sequence,sender,addressee,text,deliveries,heldReply}))};
+  if(request.type==="TREEHOUSE_ROOM_FORWARD_HELD"){
+    if(!room.enabled)return {error:"Room stopped"};
+    const last=[...room.messages].reverse().find(m=>m.sender==="gpt" &&
+      m.heldReply?.status==="held-unverified");
+    if(!last)return {error:"No held Gemini reply; wait for capture"};
+    const reply=last.heldReply.text;
+    if(typeof reply!=="string"||!reply.trim()||reply.length>500)
+      return {error:"Held reply invalid or exceeds 500 characters"};
+    // Lock the source before dispatch. Never duplicate after MV3 restart.
+    last.heldReply.status="forward-attempted";
+    const msg={id:crypto.randomUUID(),sequence:room.nextSequence++,
+      sender:"gemini",addressee:/^\\s*(?:gpt|gray squirrel)\\s*[:,]/i.test(reply)?"gpt":null,
+      text:reply,createdAt:Date.now(),deliveries:{}};
+    for(const p of room.participants)if(p.name!=="gemini")msg.deliveries[p.name]={status:"pending"};
+    room.messages.push(msg);
+    await roomWrite(room);
+    await roomDeliver(room,msg);
+    return {ok:true,sequence:msg.sequence,deliveries:msg.deliveries};
+  }
   if(request.type==="TREEHOUSE_ROOM_INSPECT_GEMINI"){
     if(!room.enabled)return {error:"Start room first"};
     const gem=room.participants.find(p=>p.name==="gemini");

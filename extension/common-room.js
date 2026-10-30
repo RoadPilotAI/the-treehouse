@@ -100,6 +100,13 @@ async function roomCommand(request){
       return {status:"candidate-only",...candidate};
     }catch{return {error:"Gemini adapter unavailable; refresh Gemini tab"};}
   }
+  if(request.type==="TREEHOUSE_ROOM_CLEAR"){
+    if(room.enabled)return {error:"Stop the room before clearing its transcript"};
+    room.messages=[];
+    room.nextSequence=1;
+    await roomWrite(room);
+    return {ok:true};
+  }
   if(request.type==="TREEHOUSE_ROOM_STOP"){
     room.enabled=false;await roomWrite(room);return {ok:true,enabled:false};
   }

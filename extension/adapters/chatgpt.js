@@ -187,26 +187,13 @@
       el.getClientRects().length > 0);
     if (!editor || editor.matches('[disabled], [aria-disabled="true"]'))
       return { error: "Editable composer unavailable." };
-    const read = () => editor.matches("textarea") ? editor.value : editor.innerText;
-    if (read().trim()) return {
-      error: "Composer appears occupied; nothing inserted.",
-      diagnostic: {
-        selectedEditorTag: editor.tagName.toLowerCase(),
+    const plain = globalThis.TreehousePlainText;
+    if (!plain) return { error: "Plain-text module unavailable; reload extension and refresh tab." };
+    const read = () => plain.fromEditor(editor);
+    if (read().trim()) return { error: "Composer occupied. Nothing inserted.",
+      diagnostic: { selectedEditorTag: editor.tagName.toLowerCase(),
         selectedEditorId: (editor.id || "").slice(0, 60),
-        selectedEditorRole: (editor.getAttribute("role") || "").slice(0, 40),
-        selectedEditorTestId: (editor.getAttribute("data-testid") || "").slice(0, 60),
-        selectedEditorLength: read().length,
-        selectedEditorChildCount: editor.childElementCount,
-        selectorMatches: candidates.slice(0, 8).map(el => ({
-          tag: el.tagName.toLowerCase(),
-          id: (el.id || "").slice(0, 60),
-          role: (el.getAttribute("role") || "").slice(0, 40),
-          visible: Boolean(el.getClientRects().length),
-          editable: Boolean(el.isContentEditable),
-          textLength: el.matches("textarea") ? el.value.length : (el.innerText || "").length
-        }))
-      }
-    };
+        observedLength: read().length } };
     editor.focus();
     try {
       if (editor.matches("textarea")) {
@@ -217,30 +204,11 @@
       } else if (!document.execCommand("insertText", false, text)) {
         return { error: "Browser rejected insertion." };
       }
-      // ProseMirror may render line breaks as paragraph elements. Compare a
-      // minimal, explicit normalization only; never erase arbitrary whitespace.
-      const normalize = value => value.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").normalize("NFC");
+      const expected = plain.canonical(text);
       const observed = read();
-      // ChatGPT's contenteditable can insert one visual separator between each
-      // existing line. Only accept that exact structural transformation when
-      // every underlying line remains byte-for-byte identical after normalization.
-      const sourceLines = normalize(text).split("\n");
-      const observedLines = normalize(observed).split("\n");
-      const duplicateSeparatorsOnly =
-        observedLines.length === sourceLines.length * 2 - 1 &&
-        observedLines.every((line, i) => i % 2 === 1 ? line === "" : line === sourceLines[i / 2]);
-      if (normalize(observed) !== normalize(text) && !duplicateSeparatorsOnly) return {
-        error: "Inserted draft not identical; no send attempted. Inspect tab.",
-        diagnostic: {
-          expectedLength: text.length,
-          observedLength: observed.length,
-          expectedLines: text.split(/\r\n?|\n/).length,
-          observedLines: observed.split(/\r\n?|\n/).length,
-          leadingDifference: observed.length - observed.trimStart().length,
-          trailingDifference: observed.length - observed.trimEnd().length,
-          exactMatch: false,
-          doubleParagraphSeparatorPattern: duplicateSeparatorsOnly
-        }
+      if (observed !== expected) return {
+        error: "Plain-text integrity mismatch; no send attempted. Inspect tab.",
+        diagnostic: plain.diagnose(expected, observed)
       };
       const sendSelector = platform === "chatgpt"
         ? 'button[data-testid="send-button"]'

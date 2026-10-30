@@ -15,14 +15,14 @@
       return {count:0,text:"",diagnostic: platform==="gpt" ? {
         authorMarkers:document.querySelectorAll("[data-message-author-role]").length,
         conversationTurns:document.querySelectorAll('[data-testid^="conversation-turn-"]').length,
-        assistantTurns:document.querySelectorAll('[data-turn="assistant"]').length
+        assistantTurns:document.querySelectorAll('h4[data-conversation-role="assistant"]').length
       }:undefined};
     }
     const body=platform==="gemini"
       ?el.querySelector(".model-response-text, message-content, .markdown")||el
       :el.querySelector(".markdown, [data-message-content], .prose")||el;
     const text=platform==="gpt" && body===el
-      ? [...el.children].filter(child=>child!==el.querySelector('h4[data-conversation-role="assistant"]')).map(child=>child.innerText||"").join("\\n").trim()
+      ? [...el.children].filter(child=>child!==el.querySelector('h4[data-conversation-role="assistant"]')).map(child=>child.innerText||"").join("\n").trim()
       : (body.innerText||body.textContent||"").trim();
     return {count:all.length,text};
   }

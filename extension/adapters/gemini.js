@@ -86,7 +86,7 @@
       // Different rich-text editors normalize line endings and nonbreaking spaces.
       // Accept only these explicitly understood representation changes; never
       // collapse paragraphs, punctuation, or other substantive differences.
-      const normalizeEditorText = value => value.replace(/\r\n?/g, "\\n").replace(/\u00a0/g, " ").normalize("NFC");
+      const normalizeEditorText = value => value.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").normalize("NFC");
       const observed = read();
       if (normalizeEditorText(observed) !== normalizeEditorText(text)) return {
         error: "Inserted draft differs from intended text; no send attempted. Inspect tab.",

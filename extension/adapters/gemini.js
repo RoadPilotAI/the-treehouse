@@ -104,7 +104,35 @@
             htmlTag: el.tagName
           }))
       };
-      if (send.length !== 1) return { error: "Send control not verified. Draft left untouched for manual send.", diagnostic };
+      if (send.length !== 1) {
+        // Inspect structure and geometry only. Never read text or HTML from the composer.
+        const box = editor.getBoundingClientRect();
+        const nearby = [...document.querySelectorAll('button, [role="button"], [type="submit"], [data-test-id], [aria-label]')]
+          .filter(el => el !== editor && !editor.contains(el) && el.getClientRects().length)
+          .map(el => {
+            const rect = el.getBoundingClientRect();
+            return { el, rect, distance: Math.hypot(
+              Math.max(0, box.left - rect.right, rect.left - box.right),
+              Math.max(0, box.top - rect.bottom, rect.top - box.bottom)
+            ) };
+          })
+          .filter(item => item.distance < 250)
+          .sort((a,b) => a.distance - b.distance)
+          .slice(0, 18)
+          .map(({el, distance}) => ({
+            tag: el.tagName.toLowerCase(),
+            role: (el.getAttribute("role") || "").slice(0, 32),
+            ariaLabel: (el.getAttribute("aria-label") || "").slice(0, 80),
+            testId: (el.getAttribute("data-test-id") || el.getAttribute("data-testid") || "").slice(0, 80),
+            title: (el.getAttribute("title") || "").slice(0, 80),
+            type: (el.getAttribute("type") || "").slice(0, 24),
+            disabled: Boolean(el.disabled),
+            ariaDisabled: el.getAttribute("aria-disabled"),
+            distancePx: Math.round(distance)
+          }));
+        diagnostic.nearbyControls = nearby;
+        return { error: "Send control not verified. Draft left untouched for manual send.", diagnostic };
+      }
       // Do not use Enter as a fallback; ambiguous UI = stop.
       send[0].click();
       // A synthetic click may be ignored by the host UI. Never equate click() with sending.

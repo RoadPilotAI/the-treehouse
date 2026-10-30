@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Treehouse — Manual Transport Prototype",
-  "version": "0.5.0",
-  "description": "Experimental common room with local broadcast ledger and bounded manually-authored messages",
+  "version": "0.5.1",
+  "description": "Experimental automatic response relay in bounded two-participant common room",
   "permissions": [
     "tabs",
     "storage"
@@ -23,7 +23,8 @@
       "js": [
         "plain-text.js",
         "adapters/chatgpt.js",
-        "observer.js"
+        "observer.js",
+        "reply-reader.js"
       ],
       "run_at": "document_idle"
     },
@@ -34,7 +35,8 @@
       "js": [
         "plain-text.js",
         "adapters/gemini.js",
-        "observer.js"
+        "observer.js",
+        "reply-reader.js"
       ],
       "run_at": "document_idle"
     }

@@ -146,3 +146,29 @@ document.querySelector("#seed-stop").addEventListener("click", async () => {
   } catch { seedStatus.textContent = "Stop request failed; reload extension and inspect destination."; }
 });
 refreshSeedControls().catch(() => { seedStatus.textContent = "Coordinator unavailable."; });
+
+
+const returnStatus = document.querySelector("#return-status");
+async function showReturnStatus() {
+  const state = await chrome.runtime.sendMessage({type:"TREEHOUSE_RETURN_STATUS"});
+  returnStatus.textContent = JSON.stringify(state, null, 2);
+}
+document.querySelector("#return-stage").addEventListener("click", async () => {
+  const tabs = await chrome.tabs.query({});
+  const source = tabs.find(t => { try { return new URL(t.url).hostname === "gemini.google.com"; } catch { return false; } });
+  const dest = tabs.find(t => { try { return ["chatgpt.com","chat.openai.com"].includes(new URL(t.url).hostname); } catch { return false; } });
+  if (!source || !dest) {returnStatus.textContent="Open both Gemini and ChatGPT tabs.";return;}
+  const result = await chrome.runtime.sendMessage({type:"TREEHOUSE_RETURN_STAGE",
+    sourceTabId:source.id,destinationTabId:dest.id});
+  returnStatus.textContent=JSON.stringify(result,null,2);
+});
+document.querySelector("#return-approve").addEventListener("click",async()=>{
+  if (!window.confirm("Have you personally reviewed the selected Gemini response for authorship, completeness and accuracy? Submit it to ChatGPT ONCE?"))return;
+  const result=await chrome.runtime.sendMessage({type:"TREEHOUSE_RETURN_APPROVE"});
+  returnStatus.textContent=JSON.stringify(result,null,2);
+});
+document.querySelector("#return-discard").addEventListener("click",async()=>{
+  const result=await chrome.runtime.sendMessage({type:"TREEHOUSE_RETURN_DISCARD"});
+  returnStatus.textContent=JSON.stringify(result,null,2);
+});
+showReturnStatus().catch(()=>{returnStatus.textContent="Queue unavailable";});

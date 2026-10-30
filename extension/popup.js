@@ -146,3 +146,42 @@ document.querySelector("#seed-stop").addEventListener("click", async () => {
   } catch { seedStatus.textContent = "Stop request failed; reload extension and inspect destination."; }
 });
 refreshSeedControls().catch(() => { seedStatus.textContent = "Coordinator unavailable."; });
+
+
+const roomStatus=document.querySelector("#room-status");
+const roomTranscript=document.querySelector("#room-transcript");
+async function roomRefresh(){
+  const state=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_STATUS"});
+  roomStatus.textContent=state.enabled?"Room open":"Room stopped";
+  roomTranscript.replaceChildren();
+  for(const msg of state.messages||[]){
+    const p=document.createElement("p");
+    const head=document.createElement("strong");
+    head.textContent="#"+msg.sequence+" "+msg.sender.toUpperCase()+" → "+
+      (msg.addressee||"all")+" (broadcast to others)";
+    const content=document.createElement("div");
+    content.textContent=msg.text;
+    const details=document.createElement("small");
+    details.textContent=JSON.stringify(msg.deliveries);
+    p.append(head,content,details);
+    roomTranscript.append(p);
+  }
+}
+document.querySelector("#room-start").addEventListener("click",async()=>{
+  roomStatus.textContent=JSON.stringify(await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_START"}));
+  await roomRefresh();
+});
+document.querySelector("#room-stop").addEventListener("click",async()=>{
+  roomStatus.textContent=JSON.stringify(await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_STOP"}));
+});
+document.querySelector("#room-post").addEventListener("click",async()=>{
+  const sender=document.querySelector("#room-sender").value;
+  const text=document.querySelector("#room-text").value;
+  if(!window.confirm("Broadcast this test message from "+sender+" to every OTHER participant? It will submit to the provider."))return;
+  const result=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_POST",sender,text});
+  roomStatus.textContent=JSON.stringify(result);
+  if(result.ok)document.querySelector("#room-text").value="";
+  await roomRefresh();
+});
+document.querySelector("#room-refresh").addEventListener("click",roomRefresh);
+roomRefresh().catch(()=>{roomStatus.textContent="Room coordinator unavailable";});

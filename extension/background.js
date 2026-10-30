@@ -23,6 +23,68 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!message || typeof message !== "object") return;
   // Control actions are accepted only from extension UI, never page content scripts.
   if (["TREEHOUSE_SESSION_STATUS", "TREEHOUSE_SESSION_STOP", "TREEHOUSE_SESSION_START"].includes(message.type) && (sender.tab || sender.id !== chrome.runtime.id)) return;
+  if (["TREEHOUSE_RETURN_STAGE", "TREEHOUSE_RETURN_STATUS", "TREEHOUSE_RETURN_DISCARD", "TREEHOUSE_RETURN_APPROVE"].includes(message.type) &&
+      (sender.tab || sender.id !== chrome.runtime.id)) return;
+  if (message.type === "TREEHOUSE_RETURN_STATUS") {
+    chrome.storage.local.get("treehouseReturn").then(data => {
+      const item = data.treehouseReturn;
+      respond(item ? { state: item.state, length: item.text.length,
+        sourceTabId: item.sourceTabId, sourcePlatform: item.sourcePlatform,
+        destinationTabId: item.destinationTabId } : {state:"empty"});
+    }).catch(() => respond({error:"Queue unavailable"}));
+    return true;
+  }
+  if (message.type === "TREEHOUSE_RETURN_DISCARD") {
+    chrome.storage.local.remove("treehouseReturn").then(() => respond({ok:true}))
+      .catch(() => respond({error:"Unable to discard queue"}));
+    return true;
+  }
+  if (message.type === "TREEHOUSE_RETURN_STAGE") {
+    (async () => {
+      const {sourceTabId,destinationTabId} = message;
+      if (!Number.isSafeInteger(sourceTabId) || !Number.isSafeInteger(destinationTabId) ||
+          sourceTabId === destinationTabId) return {error:"Invalid tabs"};
+      const existing = (await chrome.storage.local.get("treehouseReturn")).treehouseReturn;
+      if (existing) return {error:"Return queue occupied; discard existing entry first"};
+      const tabs = await Promise.all([chrome.tabs.get(sourceTabId),chrome.tabs.get(destinationTabId)]);
+      if (provider(new URL(tabs[0].url).hostname) !== "gemini" ||
+          provider(new URL(tabs[1].url).hostname) !== "chatgpt")
+        return {error:"Return requires Gemini source and ChatGPT destination"};
+      // User explicitly selects response; adapter does not certify author/completion.
+      const extracted = await chrome.tabs.sendMessage(sourceTabId, {type:"TREEHOUSE_EXTRACT_SELECTED"});
+      if (extracted?.error || extracted?.platform !== "gemini" ||
+          typeof extracted.text !== "string" || !extracted.text.trim() || extracted.text.length > 500)
+        return {error:extracted?.error || "Select 1–500 characters in Gemini first"};
+      const id = crypto.randomUUID();
+      await chrome.storage.local.set({treehouseReturn:{
+        id, state:"review", sourceTabId,destinationTabId,sourcePlatform:"gemini",
+        text:extracted.text, createdAt:Date.now(), completion:"unverified"
+      }});
+      return {ok:true,state:"review",length:extracted.text.length,
+        note:"Selection staged. Authorship and completion NOT verified."};
+    })().then(respond).catch(() => respond({error:"Unable to stage return"}));
+    return true;
+  }
+  if (message.type === "TREEHOUSE_RETURN_APPROVE") {
+    (async () => {
+      const data = (await chrome.storage.local.get("treehouseReturn")).treehouseReturn;
+      if (!data || data.state !== "review") return {error:"No reviewable return item"};
+      const tab = await chrome.tabs.get(data.destinationTabId);
+      if (provider(new URL(tab.url).hostname) !== "chatgpt")
+        return {error:"Destination changed; discard queue"};
+      // Write attempt BEFORE sending to prevent replay after worker restart.
+      await chrome.storage.local.set({treehouseReturn:{...data,state:"attempted",attemptedAt:Date.now()}});
+      let result;
+      try {
+        result = await chrome.tabs.sendMessage(data.destinationTabId,
+          {type:"TREEHOUSE_SUBMIT_SEED",text:data.text});
+      } catch { return {error:"Submission uncertain; queue locked as attempted. Do not retry."}; }
+      return result?.ok
+        ? {ok:true,state:"attempted",note:"Composer cleared after attempt; verify actual ChatGPT receipt."}
+        : {error:result?.error || "Submission uncertain; do not retry",diagnostic:result?.diagnostic || null};
+    })().then(respond).catch(() => respond({error:"Submission uncertain; do not retry"}));
+    return true;
+  }
   if (message.type === "TREEHOUSE_SESSION_STATUS") { respond(status()); return; }
   if (message.type === "TREEHOUSE_SESSION_STOP") {
     void halt("Stopped by user.");

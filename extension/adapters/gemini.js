@@ -86,7 +86,7 @@
       if (read() !== text) return { error: "Inserted draft not identical; no send attempted. Inspect tab." };
       const sendSelector = platform === "chatgpt"
         ? 'button[data-testid="send-button"]'
-        : 'button[aria-label="Send message"], button[aria-label="Send"], button[data-test-id="send-button"]';
+        : 'button[aria-label="Send message"], button[aria-label="Send"], button[aria-label="Submit"], button[title="Submit"], button[type="submit"], button[data-test-id="send-button"]';
       const send = [...document.querySelectorAll(sendSelector)]
         .filter(el => el.getClientRects().length && !el.disabled && el.getAttribute("aria-disabled") !== "true");
       const diagnostic = {

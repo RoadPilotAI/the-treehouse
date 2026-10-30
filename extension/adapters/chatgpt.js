@@ -175,7 +175,7 @@
 
 
   // Bounded PR #4 actuation: one user-authorized seed, never an AI reply.
-  function submitSeed(request) {
+  async function submitSeed(request) {
     const text = request?.text;
     if (typeof text !== "string" || !text.trim() || text.length > 500)
       return { error: "Seed must contain 1–500 characters." };
@@ -208,14 +208,20 @@
       if (send.length !== 1) return { error: "Unique enabled Send button not verified; draft left for manual review." };
       // Do not use Enter as a fallback; ambiguous UI = stop.
       send[0].click();
-      return { ok: true, note: "Send click attempted; server acceptance not independently verified." };
+      // A synthetic click may be ignored by the host UI. Never equate click() with sending.
+      await new Promise(resolve => setTimeout(resolve, 900));
+      if (read().trim()) return { error: "Send click attempted but draft remains in composer. Not confirmed sent; inspect tab. DO NOT retry automatically." };
+      return { ok: true, note: "Composer cleared after Send click; host acceptance still not independently verified." };
     } catch {
       return { error: "Submission failed or uncertain; inspect tab before retrying." };
     }
   }
   chrome.runtime.onMessage.addListener((request, _sender, respond) => {
     if (request?.type === "TREEHOUSE_STATUS") respond(probe());
-    if (request?.type === "TREEHOUSE_SUBMIT_SEED") respond(submitSeed(request));
+    if (request?.type === "TREEHOUSE_SUBMIT_SEED") {
+      submitSeed(request).then(respond).catch(() => respond({ error: "Submission status uncertain; inspect destination." }));
+      return true;
+    }
     if (request?.type === "TREEHOUSE_EXTRACT_SELECTED") respond(extractSelection());
     if (request?.type === "TREEHOUSE_PREPARE_DRAFT") respond(prepareDraft(request));
     if (request?.type === "TREEHOUSE_INSPECT_SELECTION") respond(inspectSelection());

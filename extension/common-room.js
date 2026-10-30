@@ -20,6 +20,8 @@ async function roomDeliver(room,message){
   const target=room.participants.filter(p=>p.name!==message.sender);
   // The broadcast recipient set is a transport rule, never inferred from addressee.
   for(const p of target){
+    const current=await roomRead();
+    if(!current.enabled)break;
     const state=message.deliveries[p.name];
     if(state && state.status!=="pending")continue;
     // Record the attempt before any side-effect: an uncertain send must never replay.

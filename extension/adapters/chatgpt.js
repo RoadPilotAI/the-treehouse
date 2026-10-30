@@ -217,7 +217,22 @@
       } else if (!document.execCommand("insertText", false, text)) {
         return { error: "Browser rejected insertion." };
       }
-      if (read() !== text) return { error: "Inserted draft not identical; no send attempted. Inspect tab." };
+      // ProseMirror may render line breaks as paragraph elements. Compare a
+      // minimal, explicit normalization only; never erase arbitrary whitespace.
+      const normalize = value => value.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").normalize("NFC");
+      const observed = read();
+      if (normalize(observed) !== normalize(text)) return {
+        error: "Inserted draft not identical; no send attempted. Inspect tab.",
+        diagnostic: {
+          expectedLength: text.length,
+          observedLength: observed.length,
+          expectedLines: text.split(/\r\n?|\n/).length,
+          observedLines: observed.split(/\r\n?|\n/).length,
+          leadingDifference: observed.length - observed.trimStart().length,
+          trailingDifference: observed.length - observed.trimEnd().length,
+          exactMatch: false
+        }
+      };
       const sendSelector = platform === "chatgpt"
         ? 'button[data-testid="send-button"]'
         : 'button[aria-label="Send message"], button[aria-label="Send"], button[data-test-id="send-button"]';

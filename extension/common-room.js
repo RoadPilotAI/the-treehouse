@@ -75,6 +75,7 @@ async function roomRelayReply(tabId,platform){
     source.heldReply={text:second.text.slice(0,1200),status:"not-forwarded",
       note:"The complete reply exceeds the current 500-character send limit or room auto budget."};
     latest.enabled=false;
+    latest.stopReason=second.text.length>500 ? "An assistant reply exceeded the 500-character adapter limit." : "Automatic reply budget reached.";
     await roomWrite(latest);
     return;
   }
@@ -88,7 +89,7 @@ async function roomRelayReply(tabId,platform){
 async function roomCommand(request){
   const room=await roomRead();
   if(request.type==="TREEHOUSE_ROOM_STATUS")return {
-    enabled:room.enabled,participants:room.participants,
+    enabled:room.enabled,stopReason:room.stopReason||null,participants:room.participants,
     autoLimit:room.autoLimit||DEFAULT_AUTO_REPLIES,
     messages:room.messages.map(({id,sequence,sender,addressee,text,deliveries,heldReply})=>({
       id,sequence,sender,addressee,text,deliveries,heldReply}))};
@@ -109,7 +110,7 @@ async function roomCommand(request){
     return {ok:true};
   }
   if(request.type==="TREEHOUSE_ROOM_STOP"){
-    room.enabled=false;await roomWrite(room);return {ok:true,enabled:false};
+    room.enabled=false;room.stopReason="Stopped by user.";await roomWrite(room);return {ok:true,enabled:false};
   }
   if(request.type==="TREEHOUSE_ROOM_START"){
     if(room.enabled)return {error:"Room already enabled"};
@@ -119,7 +120,7 @@ async function roomCommand(request){
     const participants=await roomParticipants();
     if(participants.length!==2||!participants.some(p=>p.name==="gpt")||!participants.some(p=>p.name==="gemini"))
       return {error:"Open one GPT and one Gemini tab"};
-    room.enabled=true;room.participants=participants;room.autoLimit=requestedLimit;await roomWrite(room);
+    room.enabled=true;room.stopReason=null;room.participants=participants;room.autoLimit=requestedLimit;await roomWrite(room);
     return {ok:true,participants};
   }
   if(request.type==="TREEHOUSE_ROOM_OPENING"){

@@ -238,7 +238,32 @@
             distancePx: distance
           }));
         return { error: "ChatGPT Send control not verified; draft left for manual review.",
-          diagnostic: { matchedSendButtons: send.length, nearbyControls: controls } };
+          diagnostic: {
+            matchedSendButtons: send.length,
+            nearbyControls: controls,
+            composerControls: (() => {
+              // Probe the actual composer subtree, including icon-only controls.
+              // Structural metadata only; no user text, HTML, or click.
+              const root = editor.closest("form") ||
+                editor.closest('[data-testid*="composer"]') ||
+                editor.parentElement?.parentElement?.parentElement;
+              if (!root) return [];
+              return [...root.querySelectorAll('button, [role="button"], [type="submit"]')]
+                .filter(el => !editor.contains(el) && el.getClientRects().length)
+                .slice(0, 24).map(el => ({
+                  tag: el.tagName.toLowerCase(),
+                  ariaLabel: (el.getAttribute("aria-label") || "").slice(0, 80),
+                  testId: (el.getAttribute("data-testid") || "").slice(0, 80),
+                  type: (el.getAttribute("type") || "").slice(0, 24),
+                  title: (el.getAttribute("title") || "").slice(0, 60),
+                  classes: [...el.classList].slice(0, 5).map(x => x.slice(0, 48)),
+                  disabled: Boolean(el.disabled),
+                  ariaDisabled: el.getAttribute("aria-disabled"),
+                  hasSvg: Boolean(el.querySelector("svg")),
+                  svgDataTestId: (el.querySelector("svg")?.getAttribute("data-testid") || "").slice(0, 60)
+                }));
+            })()
+          } };
       }
       // Do not use Enter as a fallback; ambiguous UI = stop.
       send[0].click();

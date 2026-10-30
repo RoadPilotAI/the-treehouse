@@ -188,7 +188,25 @@
     if (!editor || editor.matches('[disabled], [aria-disabled="true"]'))
       return { error: "Editable composer unavailable." };
     const read = () => editor.matches("textarea") ? editor.value : editor.innerText;
-    if (read().trim()) return { error: "Composer occupied. Nothing inserted." };
+    if (read().trim()) return {
+      error: "Composer appears occupied; nothing inserted.",
+      diagnostic: {
+        selectedEditorTag: editor.tagName.toLowerCase(),
+        selectedEditorId: (editor.id || "").slice(0, 60),
+        selectedEditorRole: (editor.getAttribute("role") || "").slice(0, 40),
+        selectedEditorTestId: (editor.getAttribute("data-testid") || "").slice(0, 60),
+        selectedEditorLength: read().length,
+        selectedEditorChildCount: editor.childElementCount,
+        selectorMatches: candidates.slice(0, 8).map(el => ({
+          tag: el.tagName.toLowerCase(),
+          id: (el.id || "").slice(0, 60),
+          role: (el.getAttribute("role") || "").slice(0, 40),
+          visible: Boolean(el.getClientRects().length),
+          editable: Boolean(el.isContentEditable),
+          textLength: el.matches("textarea") ? el.value.length : (el.innerText || "").length
+        }))
+      }
+    };
     editor.focus();
     try {
       if (editor.matches("textarea")) {

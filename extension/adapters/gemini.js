@@ -71,8 +71,13 @@
       el.getClientRects().length > 0);
     if (!editor || editor.matches('[disabled], [aria-disabled="true"]'))
       return { error: "Editable composer unavailable." };
-    const read = () => editor.matches("textarea") ? editor.value : editor.innerText;
-    if (read().trim()) return { error: "Composer occupied. Nothing inserted." };
+    const plain = globalThis.TreehousePlainText;
+    if (!plain) return { error: "Plain-text module unavailable; reload extension and refresh tab." };
+    const read = () => plain.fromEditor(editor);
+    if (read().trim()) return { error: "Composer occupied. Nothing inserted.",
+      diagnostic: { selectedEditorTag: editor.tagName.toLowerCase(),
+        selectedEditorId: (editor.id || "").slice(0, 60),
+        observedLength: read().length } };
     editor.focus();
     try {
       if (editor.matches("textarea")) {
@@ -83,19 +88,11 @@
       } else if (!document.execCommand("insertText", false, text)) {
         return { error: "Browser rejected insertion." };
       }
-      // Different rich-text editors normalize line endings and nonbreaking spaces.
-      // Accept only these explicitly understood representation changes; never
-      // collapse paragraphs, punctuation, or other substantive differences.
-      const normalizeEditorText = value => value.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").normalize("NFC");
+      const expected = plain.canonical(text);
       const observed = read();
-      if (normalizeEditorText(observed) !== normalizeEditorText(text)) return {
-        error: "Inserted draft differs from intended text; no send attempted. Inspect tab.",
-        diagnostic: {
-          expectedLength: text.length, observedLength: observed.length,
-          expectedLines: text.split(/\r\n?|\n/).length,
-          observedLines: observed.split(/\r\n?|\n/).length,
-          sameAfterLineEndingAndSpaceNormalization: false
-        }
+      if (observed !== expected) return {
+        error: "Plain-text integrity mismatch; no send attempted. Inspect tab.",
+        diagnostic: plain.diagnose(expected, observed)
       };
       await new Promise(resolve => setTimeout(resolve, 650));
       const sendSelector = platform === "chatgpt"

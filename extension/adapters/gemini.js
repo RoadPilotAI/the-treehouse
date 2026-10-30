@@ -83,7 +83,20 @@
       } else if (!document.execCommand("insertText", false, text)) {
         return { error: "Browser rejected insertion." };
       }
-      if (read() !== text) return { error: "Inserted draft not identical; no send attempted. Inspect tab." };
+      // Different rich-text editors normalize line endings and nonbreaking spaces.
+      // Accept only these explicitly understood representation changes; never
+      // collapse paragraphs, punctuation, or other substantive differences.
+      const normalizeEditorText = value => value.replace(/\r\n?/g, "\\n").replace(/\u00a0/g, " ").normalize("NFC");
+      const observed = read();
+      if (normalizeEditorText(observed) !== normalizeEditorText(text)) return {
+        error: "Inserted draft differs from intended text; no send attempted. Inspect tab.",
+        diagnostic: {
+          expectedLength: text.length, observedLength: observed.length,
+          expectedLines: text.split(/\r\n?|\n/).length,
+          observedLines: observed.split(/\r\n?|\n/).length,
+          sameAfterLineEndingAndSpaceNormalization: false
+        }
+      };
       await new Promise(resolve => setTimeout(resolve, 650));
       const sendSelector = platform === "chatgpt"
         ? 'button[data-testid="send-button"]'

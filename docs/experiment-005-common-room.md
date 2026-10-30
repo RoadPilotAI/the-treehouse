@@ -1,3 +1,17 @@
+# Experiment 005C — Automatic Common Room (field test pending)
+
+This revision supersedes the earlier manual-approval instructions below.
+
+**Simple transport:** capture the latest assistant response element in the Gemini or ChatGPT conversation, after the existing observer sees generation activity end. Read its plain text as one message and forward to every other participant, excluding its sender.
+
+**Minimal safeguards:** snapshot the response count before delivery, require a new response element afterward, check that two readings 500ms apart match, mark the source exchange handled before forwarding, keep the existing one-shot send protection, limit the room to four automatically relayed replies, and retain Emergency Stop. No manual approval or text-format processing. If response text exceeds the existing 500-character submission limit, hold it and stop rather than silently truncate. This is an initial bounded Chrome experiment, not an unattended production service.
+
+**Test:** reload extension from current branch and refresh both provider tabs. Start a fresh room and post a short seed as GPT, e.g. `Gem, reply with OK.`. Gem should receive it, respond, and Treehouse should automatically put her response into the ChatGPT tab. Watch the room transcript; then Stop. Keep replies short while the submission adapter is limited to 500 characters.
+
+**Current uncertainties:** provider DOM selectors, lifecycle event timing and actual Chrome execution haven't yet been tested on this revision. If either assistant's reply is not forwarded, inspect the extension service-worker Console and the room transcript. Do not manually resend an uncertain delivery.
+
+---
+
 # Experiment 005 — Common Room, first working slice
 
 **Draft / Chrome field testing required.** This branch is stacked on `experiment/003-bounded-handshake` (PR #4), not merged to main.

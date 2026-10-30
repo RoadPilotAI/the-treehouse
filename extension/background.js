@@ -6,7 +6,8 @@ const provider = hostname => hostname === "gemini.google.com" ? "gemini" :
 const status = () => session ? {
   state: session.state, sourceTabId: session.sourceTabId,
   destinationTabId: session.destinationTabId, exchangeCount: session.exchangeCount,
-  maxExchanges: session.maxExchanges, reason: session.reason || null
+  maxExchanges: session.maxExchanges, reason: session.reason || null,
+  diagnostic: session.diagnostic || null
 } : { state: "idle" };
 async function halt(reason) {
   if (!session) return;
@@ -40,7 +41,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         return { error: "Select one ChatGPT tab and one Gemini tab." };
       if (session && session.state === "running") return { error: "Session already running." };
       session = { state: "running", sourceTabId, destinationTabId, exchangeCount: 0,
-        maxExchanges: 1, reason: null };
+        maxExchanges: 1, reason: null, diagnostic: null };
       // One explicit user-initiated seed is the entire permitted send budget in this stage.
       let result;
       try {
@@ -49,8 +50,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
         });
       } catch { await halt("Destination adapter unavailable."); return status(); }
       if (!result?.ok) {
+        session.diagnostic = result?.diagnostic || null;
         await halt(result?.error || "Seed insertion/submission unverified; inspect destination.");
-        return { ...status(), diagnostic: result?.diagnostic || null };
+        return status();
       }
       session.exchangeCount = 1;
       session.state = "awaiting-end";

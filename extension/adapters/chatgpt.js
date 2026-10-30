@@ -221,7 +221,15 @@
       // minimal, explicit normalization only; never erase arbitrary whitespace.
       const normalize = value => value.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ").normalize("NFC");
       const observed = read();
-      if (normalize(observed) !== normalize(text)) return {
+      // ChatGPT's contenteditable can insert one visual separator between each
+      // existing line. Only accept that exact structural transformation when
+      // every underlying line remains byte-for-byte identical after normalization.
+      const sourceLines = normalize(text).split("\n");
+      const observedLines = normalize(observed).split("\n");
+      const duplicateSeparatorsOnly =
+        observedLines.length === sourceLines.length * 2 - 1 &&
+        observedLines.every((line, i) => i % 2 === 1 ? line === "" : line === sourceLines[i / 2]);
+      if (normalize(observed) !== normalize(text) && !duplicateSeparatorsOnly) return {
         error: "Inserted draft not identical; no send attempted. Inspect tab.",
         diagnostic: {
           expectedLength: text.length,
@@ -230,7 +238,8 @@
           observedLines: observed.split(/\r\n?|\n/).length,
           leadingDifference: observed.length - observed.trimStart().length,
           trailingDifference: observed.length - observed.trimEnd().length,
-          exactMatch: false
+          exactMatch: false,
+          doubleParagraphSeparatorPattern: duplicateSeparatorsOnly
         }
       };
       const sendSelector = platform === "chatgpt"

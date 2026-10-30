@@ -88,6 +88,11 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     sequence: message.sequence,
     elapsedMs: Number.isFinite(message.elapsedMs) ? Math.min(Math.max(0, Math.round(message.elapsedMs)), 3600000) : null };
   console.info("[Treehouse observation]", record);
+  if (platform==="gemini" && message.event==="RESPONSE_STATUS_UNKNOWN") {
+    // Capture a bounded, held candidate only; NEVER submit or rebroadcast here.
+    void roomHoldGeminiReply(sender.tab.id).catch(err =>
+      console.warn("[Treehouse room] Candidate capture unavailable", String(err)));
+  }
   if (session && sender.tab.id === session.destinationTabId &&
     ["RESPONSE_INTERRUPTED", "RESPONSE_STATUS_UNKNOWN"].includes(message.event) &&
     session.state === "awaiting-end") void halt(message.event + ": no automatic relay permitted.");

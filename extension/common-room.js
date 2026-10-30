@@ -16,48 +16,74 @@ async function roomParticipants(){
   }
   return [...byProvider.values()];
 }
+const MAX_AUTO_REPLIES=4;
+async function roomSnapshot(tabId){
+  try{
+    const result=await chrome.tabs.sendMessage(tabId,{type:"TREEHOUSE_READ_ASSISTANT_REPLY"});
+    return result && Number.isInteger(result.count) && typeof result.text==="string"?result:null;
+  }catch{return null;}
+}
 async function roomDeliver(room,message){
-  const target=room.participants.filter(p=>p.name!==message.sender);
-  // The broadcast recipient set is a transport rule, never inferred from addressee.
-  for(const p of target){
-    const current=await roomRead();
-    if(!current.enabled)break;
-    const state=message.deliveries[p.name];
-    if(state && state.status!=="pending")continue;
-    // Record the attempt before any side-effect: an uncertain send must never replay.
-    message.deliveries[p.name]={status:"attempted",at:Date.now()};
-    await roomWrite(room);
+  for(const p of room.participants.filter(p=>p.name!==message.sender)){
+    // Read the current response before sending, to distinguish new from stale.
+    const before=await roomSnapshot(p.id);
+    const live=await roomRead();
+    if(!live.enabled)break;
+    const msg=live.messages.find(m=>m.id===message.id);
+    if(!msg || msg.deliveries[p.name]?.status!=="pending")continue;
+    msg.deliveries[p.name]={status:"attempted",at:Date.now(),before};
+    await roomWrite(live);
     let result;
     try{result=await chrome.tabs.sendMessage(p.id,{type:"TREEHOUSE_SUBMIT_SEED",text:message.text});}
-    catch{message.deliveries[p.name]={status:"uncertain",at:Date.now()};await roomWrite(room);continue;}
-    message.deliveries[p.name]={status:result?.ok?"composer-cleared":"failed-or-uncertain",at:Date.now(),
-      reason:result?.ok?"Verify visible provider receipt":String(result?.error||"Unverified").slice(0,140)};
-    await roomWrite(room);
+    catch{result={error:"Adapter unavailable"};}
+    const next=await roomRead();
+    const item=next.messages.find(m=>m.id===message.id);
+    if(!item)return;
+    item.deliveries[p.name]={...item.deliveries[p.name],
+      status:result?.ok?"composer-cleared":"uncertain",
+      reason:result?.ok?"Waiting for assistant reply":String(result?.error||"Send uncertain").slice(0,140)};
+    await roomWrite(next);
   }
 }
-// Automatic observation after Gemini generation ends. This is NOT delivery.
-async function roomHoldGeminiReply(tabId){
+async function roomRelayReply(tabId,platform){
+  const name=platform==="chatgpt"?"gpt":platform;
   const room=await roomRead();
-  if(!room.enabled || !room.participants.some(p=>p.name==="gemini" && p.id===tabId))return;
-  const last=[...room.messages].reverse().find(m=>m.sender==="gpt" &&
-    m.deliveries?.gemini?.status==="composer-cleared");
-  if(!last || last.heldReply || Date.now()-last.createdAt>120000)return;
-  let first,second;
-  try{
-    first=await chrome.tabs.sendMessage(tabId,{type:"TREEHOUSE_CAPTURE_LATEST_CANDIDATE"});
-    if(!first?.text || first.error)return;
-    await new Promise(resolve=>setTimeout(resolve,800));
-    second=await chrome.tabs.sendMessage(tabId,{type:"TREEHOUSE_CAPTURE_LATEST_CANDIDATE"});
-  }catch{return;}
-  if(!second?.text || first.text!==second.text)return;
-  // Review-only: model UI marker and stability do not certify turn ownership/completion.
+  if(!room.enabled)return;
+  const participant=room.participants.find(p=>p.name===name&&p.id===tabId);
+  if(!participant)return;
+  // Only a response after a known Treehouse delivery is eligible.
+  const incoming=[...room.messages].reverse().find(m=>m.sender!==name &&
+    m.deliveries?.[name]?.status==="composer-cleared" && !m.deliveries[name].replyRecorded);
+  if(!incoming)return;
+  const delivery=incoming.deliveries[name];
+  const before=delivery.before;
+  if(!before)return;
+  const first=await roomSnapshot(tabId);
+  if(!first || !first.text || first.count<=before.count)return;
+  await new Promise(resolve=>setTimeout(resolve,500));
+  const second=await roomSnapshot(tabId);
+  if(!second || second.count!==first.count || second.text!==first.text)return;
   const latest=await roomRead();
-  const target=latest.messages.find(m=>m.id===last.id);
-  if(!latest.enabled || !target || target.heldReply)return;
-  target.heldReply={text:second.text,source:"gemini",
-    status:"held-unverified",recordedAt:Date.now(),
-    note:"Automatically captured candidate, not broadcast; verify authorship and completion"};
+  if(!latest.enabled)return;
+  const source=latest.messages.find(m=>m.id===incoming.id);
+  if(!source||source.deliveries[name]?.replyRecorded)return;
+  // Keep the entire response as one message; never truncate it silently.
+  source.deliveries[name].replyRecorded=true;
+  if(second.text.length>500 || latest.messages.length>=MAX_MESSAGES ||
+     latest.messages.filter(m=>m.auto).length>=MAX_AUTO_REPLIES){
+    source.deliveries[name].replyStatus="held: reply too long or auto-exchange limit";
+    source.heldReply={text:second.text.slice(0,1200),status:"not-forwarded",
+      note:"The complete reply exceeds the current 500-character send limit or room auto budget."};
+    latest.enabled=false;
+    await roomWrite(latest);
+    return;
+  }
+  const reply={id:crypto.randomUUID(),sequence:latest.nextSequence++,sender:name,addressee:null,
+    text:second.text,createdAt:Date.now(),auto:true,deliveries:{}};
+  for(const p of latest.participants)if(p.name!==name)reply.deliveries[p.name]={status:"pending"};
+  latest.messages.push(reply);
   await roomWrite(latest);
+  await roomDeliver(latest,reply);
 }
 async function roomCommand(request){
   const room=await roomRead();
@@ -65,25 +91,6 @@ async function roomCommand(request){
     enabled:room.enabled,participants:room.participants,
     messages:room.messages.map(({id,sequence,sender,addressee,text,deliveries,heldReply})=>({
       id,sequence,sender,addressee,text,deliveries,heldReply}))};
-  if(request.type==="TREEHOUSE_ROOM_FORWARD_HELD"){
-    if(!room.enabled)return {error:"Room stopped"};
-    const last=[...room.messages].reverse().find(m=>m.sender==="gpt" &&
-      m.heldReply?.status==="held-unverified");
-    if(!last)return {error:"No held Gemini reply; wait for capture"};
-    const reply=last.heldReply.text;
-    if(typeof reply!=="string"||!reply.trim()||reply.length>500)
-      return {error:"Held reply invalid or exceeds 500 characters"};
-    // Lock the source before dispatch. Never duplicate after MV3 restart.
-    last.heldReply.status="forward-attempted";
-    const msg={id:crypto.randomUUID(),sequence:room.nextSequence++,
-      sender:"gemini",addressee:/^\\s*(?:gpt|gray squirrel)\\s*[:,]/i.test(reply)?"gpt":null,
-      text:reply,createdAt:Date.now(),deliveries:{}};
-    for(const p of room.participants)if(p.name!=="gemini")msg.deliveries[p.name]={status:"pending"};
-    room.messages.push(msg);
-    await roomWrite(room);
-    await roomDeliver(room,msg);
-    return {ok:true,sequence:msg.sequence,deliveries:msg.deliveries};
-  }
   if(request.type==="TREEHOUSE_ROOM_INSPECT_GEMINI"){
     if(!room.enabled)return {error:"Start room first"};
     const gem=room.participants.find(p=>p.name==="gemini");

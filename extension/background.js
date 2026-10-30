@@ -26,7 +26,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (["TREEHOUSE_SESSION_STATUS", "TREEHOUSE_SESSION_STOP", "TREEHOUSE_SESSION_START"].includes(message.type) && (sender.tab || sender.id !== chrome.runtime.id)) return;
   if (typeof message.type==="string" && message.type.startsWith("TREEHOUSE_ROOM_")) {
     if(sender.tab || sender.id!==chrome.runtime.id)return;
-    roomCommand(message).then(sendResponse).catch(()=>sendResponse({error:"Common room operation failed"}));
+    roomCommand(message).then(respond).catch(()=>respond({error:"Common room operation failed"}));
     return true;
   }
   if (message.type === "TREEHOUSE_SESSION_STATUS") { respond(status()); return; }

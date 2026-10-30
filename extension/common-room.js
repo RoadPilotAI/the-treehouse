@@ -69,13 +69,13 @@ async function roomRelayReply(tabId,platform){
   if(!source||source.deliveries[name]?.replyRecorded)return;
   // Keep the entire response as one message; never truncate it silently.
   source.deliveries[name].replyRecorded=true;
-  if(second.text.length>500 || latest.messages.length>=MAX_MESSAGES ||
+  if(second.text.length>12000 || latest.messages.length>=MAX_MESSAGES ||
      latest.messages.filter(m=>m.auto).length>= (latest.autoLimit || DEFAULT_AUTO_REPLIES)){
     source.deliveries[name].replyStatus="held: reply too long or auto-exchange limit";
     source.heldReply={text:second.text.slice(0,1200),status:"not-forwarded",
-      note:"The complete reply exceeds the current 500-character send limit or room auto budget."};
+      note:"The complete reply exceeds the current 12,000-character send limit or room auto budget."};
     latest.enabled=false;
-    latest.stopReason=second.text.length>500 ? "An assistant reply exceeded the 500-character adapter limit." : "Automatic reply budget reached.";
+    latest.stopReason=second.text.length>12000 ? "An assistant reply exceeded the 12,000-character adapter limit." : "Automatic reply budget reached.";
     await roomWrite(latest);
     return;
   }
@@ -126,8 +126,8 @@ async function roomCommand(request){
   if(request.type==="TREEHOUSE_ROOM_OPENING"){
     if(!room.enabled)return {error:"Start room first"};
     const content=request.text;
-    if(typeof content!=="string"||!content.trim()||content.length>500)
-      return {error:"Opening message must be 1–500 characters"};
+    if(typeof content!=="string"||!content.trim()||content.length>12000)
+      return {error:"Opening message must be 1–12,000 characters"};
     if(room.messages.length>=MAX_MESSAGES)return {error:"Transcript full"};
     const message={id:crypto.randomUUID(),sequence:room.nextSequence++,sender:"human",
       addressee:null,text:content,createdAt:Date.now(),deliveries:{}};
@@ -141,8 +141,8 @@ async function roomCommand(request){
     if(!room.enabled)return {error:"Start room first"};
     const sender=request.sender;
     const text=request.text;
-    if(!["gpt","gemini"].includes(sender)||typeof text!=="string"||!text.trim()||text.length>500)
-      return {error:"Choose a sender and message (1–500 characters)"};
+    if(!["gpt","gemini"].includes(sender)||typeof text!=="string"||!text.trim()||text.length>12000)
+      return {error:"Choose a sender and message (1–12,000 characters)"};
     if(room.messages.length>=MAX_MESSAGES)return {error:"Room ledger full; Stop and archive before continuing"};
     const active=await roomParticipants();
     if(room.participants.some(p=>!active.some(a=>a.name===p.name&&a.id===p.id)))

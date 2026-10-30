@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       } catch { await halt("Destination adapter unavailable."); return status(); }
       if (!result?.ok) {
         await halt(result?.error || "Seed insertion/submission unverified; inspect destination.");
-        return status();
+        return { ...status(), diagnostic: result?.diagnostic || null };
       }
       session.exchangeCount = 1;
       session.state = "awaiting-end";

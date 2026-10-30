@@ -34,3 +34,27 @@
 ## Next slice
 
 Develop provider-specific last-assistant-reply extraction **read-only** with verifiable author and turn identity, persistence, and delayed completion stability checks. Capture to a proposed record first; preserve the `UNKNOWN` lifecycle hold until independent evidence supports delivery. Only then enable automatic posting to this ledger and broadcast fan-out.
+
+## Experiment 005B — automatic Gemini candidate capture (unverified)
+
+After a room message from GPT has been delivered to Gemini, the lifecycle observer's
+`RESPONSE_STATUS_UNKNOWN` event triggers a read-only probe of Gemini's latest
+`model-response` container. If a bounded (1–500 characters) candidate is present
+and two snapshots taken 800 ms apart match exactly, Treehouse **holds** the text
+alongside the outbound message. The transcript labels it **HELD GEMINI CANDIDATE**.
+
+**This is not verified completion:** the UI's end signal can mean interrupted or
+other changes, and a stable response could be stale. The probe's DOM selectors
+may not match Gemini's actual markup. Do not treat this as reliable autonomous
+delivery until we validate provenance and completion in live Chrome tests.
+
+To test: send a *new* short message GPT→Gem from the room; wait for Gem's
+visible reply; reopen the popup and press Refresh transcript. If a held
+candidate appears, compare it against Gem's actual response. Only then click
+**Review & forward held Gemini reply once**. The extension records a new
+Gemini-authored **test-labelled** ledger entry and submits it to GPT with
+a replay-resistant attempted-state write. The source label is inferred from
+the Gemini tab and DOM marker, not cryptographically proven.
+
+If nothing appears, preserve the transcript and report the result. Avoid
+retrying delivery or changing the recipient composer until we inspect it.

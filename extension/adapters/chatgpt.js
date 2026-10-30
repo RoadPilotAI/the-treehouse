@@ -213,15 +213,12 @@
       // Look inside the editor's own form after insertion. No global button guessing.
       await new Promise(resolve => setTimeout(resolve, 350));
       const form = editor.closest("form");
-      const scope = form || editor.parentElement?.parentElement?.parentElement;
-      const controls = scope ? [...scope.querySelectorAll('button, input[type="submit"]')] : [];
+      const controls = form ? [...form.querySelectorAll('button, input[type="submit"]')] : [];
       const eligible = controls.filter(el =>
         el.getClientRects().length && !el.disabled &&
         el.getAttribute("aria-disabled") !== "true" &&
-        ((form && el.getAttribute("type") === "submit") ||
-         el.matches('[data-testid="send-button"], [data-testid="composer-send-button"]') ||
-         /^(send|submit)( message)?$/i.test(el.getAttribute("aria-label") || "") ||
-         /^(send|submit)( message)?$/i.test(el.getAttribute("title") || "")));
+        (el.getAttribute("type") === "submit" ||
+         /^(send|submit)( message)?$/i.test(el.getAttribute("aria-label") || "")));
       const diagnostic = {
         hasComposerForm: Boolean(form),
         totalFormControls: controls.length,
@@ -235,14 +232,13 @@
           ariaDisabled: el.getAttribute("aria-disabled")
         }))
       };
-      if (eligible.length !== 1) return {
+      if (!form || eligible.length !== 1) return {
         error: "ChatGPT form submission target not verified; draft preserved.",
         diagnostic
       };
       // The native form API invokes the submit event, unlike form.submit().
       // The sole eligible control is used only within this composer form.
-      if (form && eligible[0].getAttribute("type") === "submit") form.requestSubmit(eligible[0]);
-      else eligible[0].click();
+      form.requestSubmit(eligible[0]);
       await new Promise(resolve => setTimeout(resolve, 1000));
       if (read().trim()) return {
         error: "Form submission attempted but composer still contains text; no retry.",

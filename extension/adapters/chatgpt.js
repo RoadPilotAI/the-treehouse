@@ -215,7 +215,31 @@
         : 'button[aria-label="Send message"], button[aria-label="Send"], button[data-test-id="send-button"]';
       const send = [...document.querySelectorAll(sendSelector)]
         .filter(el => el.getClientRects().length && !el.disabled && el.getAttribute("aria-disabled") !== "true");
-      if (send.length !== 1) return { error: "Unique enabled Send button not verified; draft left for manual review." };
+      if (send.length !== 1) {
+        const rect = editor.getBoundingClientRect();
+        const controls = [...document.querySelectorAll('button, [role="button"], [type="submit"]')]
+          .filter(el => el.getClientRects().length && !editor.contains(el))
+          .map(el => {
+            const r = el.getBoundingClientRect();
+            return { el, distance: Math.round(Math.hypot(
+              Math.max(0, rect.left-r.right, r.left-rect.right),
+              Math.max(0, rect.top-r.bottom, r.top-rect.bottom)
+            )) };
+          }).filter(item => item.distance < 190)
+          .sort((a,b) => a.distance-b.distance).slice(0,16)
+          .map(({el,distance}) => ({
+            tag: el.tagName.toLowerCase(),
+            ariaLabel: (el.getAttribute("aria-label") || "").slice(0,80),
+            title: (el.getAttribute("title") || "").slice(0,70),
+            testId: (el.getAttribute("data-testid") || "").slice(0,70),
+            type: (el.getAttribute("type") || "").slice(0,30),
+            disabled: Boolean(el.disabled),
+            ariaDisabled: el.getAttribute("aria-disabled"),
+            distancePx: distance
+          }));
+        return { error: "ChatGPT Send control not verified; draft left for manual review.",
+          diagnostic: { matchedSendButtons: send.length, nearbyControls: controls } };
+      }
       // Do not use Enter as a fallback; ambiguous UI = stop.
       send[0].click();
       // A synthetic click may be ignored by the host UI. Never equate click() with sending.

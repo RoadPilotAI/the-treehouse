@@ -4,15 +4,10 @@
   function replies(){
     if(platform==="gemini")
       return [...document.querySelectorAll("model-response")].filter(el=>el.getClientRects().length);
-    // ChatGPT commonly nests the author marker within a conversation turn;
-    // accept either the author-marked element or its enclosing turn, without
-    // assuming that the marker itself has a measurable layout rectangle.
-    const marked=[...document.querySelectorAll('[data-message-author-role="assistant"]')];
-    if(marked.length)return marked;
-    // A narrower fallback than "all turns": only explicitly assistant-labelled turns.
-    return [...document.querySelectorAll(
-      '[data-testid^="conversation-turn-"][data-turn="assistant"], article[data-turn="assistant"]'
-    )];
+    // Current ChatGPT markup: heading identifies speaker; its parent is one turn.
+    const headings=[...document.querySelectorAll('h4[data-conversation-role="assistant"]')];
+    return headings.map(h=>h.parentElement).filter(Boolean);
+
   }
   function snapshot(){
     const all=replies(),el=all.at(-1);
@@ -26,7 +21,10 @@
     const body=platform==="gemini"
       ?el.querySelector(".model-response-text, message-content, .markdown")||el
       :el.querySelector(".markdown, [data-message-content], .prose")||el;
-    return {count:all.length,text:(body.innerText||body.textContent||"").trim()};
+    const text=platform==="gpt" && body===el
+      ? [...el.children].filter(child=>child!==el.querySelector('h4[data-conversation-role="assistant"]')).map(child=>child.innerText||"").join("\\n").trim()
+      : (body.innerText||body.textContent||"").trim();
+    return {count:all.length,text};
   }
   chrome.runtime.onMessage.addListener((request,_sender,respond)=>{
     if(request?.type==="TREEHOUSE_READ_ASSISTANT_REPLY")respond(snapshot());

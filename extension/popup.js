@@ -184,5 +184,15 @@ document.querySelector("#room-post").addEventListener("click",async()=>{
   if(result.ok)document.querySelector("#room-text").value="";
   await roomRefresh();
 });
+document.querySelector("#room-forward-held").addEventListener("click",async()=>{
+  const state=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_STATUS"});
+  const source=[...(state.messages||[])].reverse().find(m=>m.sender==="gpt" &&
+    m.heldReply?.status==="held-unverified");
+  if(!source){roomStatus.textContent="No held reply ready";return;}
+  if(!window.confirm("Inspect the HELD GEMINI CANDIDATE in transcript. Have you verified this is the correct, complete reply? Forward to every participant except Gem ONCE?"))return;
+  const result=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_FORWARD_HELD"});
+  roomStatus.textContent=JSON.stringify(result);
+  await roomRefresh();
+});
 document.querySelector("#room-refresh").addEventListener("click",roomRefresh);
 roomRefresh().catch(()=>{roomStatus.textContent="Room coordinator unavailable";});

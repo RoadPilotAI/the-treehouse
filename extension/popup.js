@@ -164,6 +164,7 @@ async function roomRefresh(){
     const details=document.createElement("small");
     details.textContent=JSON.stringify(msg.deliveries);
     p.append(head,content,details);
+    if(msg.heldReply){const held=document.createElement("pre"); held.textContent="HELD GEMINI CANDIDATE (not forwarded):\\n"+msg.heldReply.text; const warning=document.createElement("small");warning.textContent=msg.heldReply.note;p.append(held,warning);}
     roomTranscript.append(p);
   }
 }

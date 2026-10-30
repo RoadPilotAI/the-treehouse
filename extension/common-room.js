@@ -16,7 +16,7 @@ async function roomParticipants(){
   }
   return [...byProvider.values()];
 }
-const MAX_AUTO_REPLIES=4;
+const DEFAULT_AUTO_REPLIES=6;
 async function roomSnapshot(tabId){
   try{
     const result=await chrome.tabs.sendMessage(tabId,{type:"TREEHOUSE_READ_ASSISTANT_REPLY"});
@@ -70,7 +70,7 @@ async function roomRelayReply(tabId,platform){
   // Keep the entire response as one message; never truncate it silently.
   source.deliveries[name].replyRecorded=true;
   if(second.text.length>500 || latest.messages.length>=MAX_MESSAGES ||
-     latest.messages.filter(m=>m.auto).length>=MAX_AUTO_REPLIES){
+     latest.messages.filter(m=>m.auto).length>= (latest.autoLimit || DEFAULT_AUTO_REPLIES)){
     source.deliveries[name].replyStatus="held: reply too long or auto-exchange limit";
     source.heldReply={text:second.text.slice(0,1200),status:"not-forwarded",
       note:"The complete reply exceeds the current 500-character send limit or room auto budget."};
@@ -89,6 +89,7 @@ async function roomCommand(request){
   const room=await roomRead();
   if(request.type==="TREEHOUSE_ROOM_STATUS")return {
     enabled:room.enabled,participants:room.participants,
+    autoLimit:room.autoLimit||DEFAULT_AUTO_REPLIES,
     messages:room.messages.map(({id,sequence,sender,addressee,text,deliveries,heldReply})=>({
       id,sequence,sender,addressee,text,deliveries,heldReply}))};
   if(request.type==="TREEHOUSE_ROOM_INSPECT_GEMINI"){
@@ -112,11 +113,28 @@ async function roomCommand(request){
   }
   if(request.type==="TREEHOUSE_ROOM_START"){
     if(room.enabled)return {error:"Room already enabled"};
+    const requestedLimit=Number(request.autoLimit);
+    if(!Number.isInteger(requestedLimit)||requestedLimit<1||requestedLimit>20)
+      return {error:"Choose an automatic reply limit from 1 to 20"};
     const participants=await roomParticipants();
     if(participants.length!==2||!participants.some(p=>p.name==="gpt")||!participants.some(p=>p.name==="gemini"))
       return {error:"Open one GPT and one Gemini tab"};
-    room.enabled=true;room.participants=participants;await roomWrite(room);
+    room.enabled=true;room.participants=participants;room.autoLimit=requestedLimit;await roomWrite(room);
     return {ok:true,participants};
+  }
+  if(request.type==="TREEHOUSE_ROOM_OPENING"){
+    if(!room.enabled)return {error:"Start room first"};
+    const content=request.text;
+    if(typeof content!=="string"||!content.trim()||content.length>500)
+      return {error:"Opening message must be 1–500 characters"};
+    if(room.messages.length>=MAX_MESSAGES)return {error:"Transcript full"};
+    const message={id:crypto.randomUUID(),sequence:room.nextSequence++,sender:"human",
+      addressee:null,text:content,createdAt:Date.now(),deliveries:{}};
+    for(const p of room.participants)message.deliveries[p.name]={status:"pending"};
+    room.messages.push(message);
+    await roomWrite(room);
+    await roomDeliver(room,message);
+    return {ok:true,sequence:message.sequence,deliveries:(await roomRead()).messages.find(m=>m.id===message.id)?.deliveries};
   }
   if(request.type==="TREEHOUSE_ROOM_POST"){
     if(!room.enabled)return {error:"Start room first"};

@@ -20,6 +20,8 @@ chrome.tabs.onRemoved.addListener(tabId => {
 });
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!message || typeof message !== "object") return;
+  // Control actions are accepted only from extension UI, never page content scripts.
+  if (["TREEHOUSE_SESSION_STATUS", "TREEHOUSE_SESSION_STOP", "TREEHOUSE_SESSION_START"].includes(message.type) && (sender.tab || sender.id !== chrome.runtime.id)) return;
   if (message.type === "TREEHOUSE_SESSION_STATUS") { respond(status()); return; }
   if (message.type === "TREEHOUSE_SESSION_STOP") {
     void halt("Stopped by user.");

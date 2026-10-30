@@ -1,3 +1,11 @@
+## Experiment 005D.1 — Payload limit correction
+
+The live transcript showed `replyRecorded:true` alongside `held: reply too long or auto-exchange limit`. In the cases supplied, Gem's full replies exceeded the early 500-character submission limit. This update raises the Common Room and both adapter submission limits to 12,000 characters, without truncating content. The separate four/six/adjustable automatic-reply budget and Emergency Stop remain. The original one-seed Session 003 limit remains 500 characters.
+
+Test with a fresh, cleared room and observe whether a Gem-origin message now appears in the ledger and reaches GPT after an over-500-character response. GPT-origin automated capture is still unproven (`count:0` previously observed), and the DOM reader may need a narrow selector fix once that behavior is reproduced. A room display reading `reason not recorded` can reflect prior stored sessions with no reason; new stops preserve stop reasons.
+
+---
+
 # Experiment 005D — Autonomous Common Room
 
 **Draft: Chrome field test required.** Use branch `experiment/005-common-room`.

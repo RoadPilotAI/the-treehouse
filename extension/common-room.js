@@ -35,12 +35,36 @@ async function roomDeliver(room,message){
     await roomWrite(room);
   }
 }
+// Automatic observation after Gemini generation ends. This is NOT delivery.
+async function roomHoldGeminiReply(tabId){
+  const room=await roomRead();
+  if(!room.enabled || !room.participants.some(p=>p.name==="gemini" && p.id===tabId))return;
+  const last=[...room.messages].reverse().find(m=>m.sender==="gpt" &&
+    m.deliveries?.gemini?.status==="composer-cleared");
+  if(!last || last.heldReply || Date.now()-last.createdAt>120000)return;
+  let first,second;
+  try{
+    first=await chrome.tabs.sendMessage(tabId,{type:"TREEHOUSE_CAPTURE_LATEST_CANDIDATE"});
+    if(!first?.text || first.error)return;
+    await new Promise(resolve=>setTimeout(resolve,800));
+    second=await chrome.tabs.sendMessage(tabId,{type:"TREEHOUSE_CAPTURE_LATEST_CANDIDATE"});
+  }catch{return;}
+  if(!second?.text || first.text!==second.text)return;
+  // Review-only: model UI marker and stability do not certify turn ownership/completion.
+  const latest=await roomRead();
+  const target=latest.messages.find(m=>m.id===last.id);
+  if(!latest.enabled || !target || target.heldReply)return;
+  target.heldReply={text:second.text,source:"gemini",
+    status:"held-unverified",recordedAt:Date.now(),
+    note:"Automatically captured candidate, not broadcast; verify authorship and completion"};
+  await roomWrite(latest);
+}
 async function roomCommand(request){
   const room=await roomRead();
   if(request.type==="TREEHOUSE_ROOM_STATUS")return {
     enabled:room.enabled,participants:room.participants,
-    messages:room.messages.map(({id,sequence,sender,addressee,text,deliveries})=>({
-      id,sequence,sender,addressee,text,deliveries}))};
+    messages:room.messages.map(({id,sequence,sender,addressee,text,deliveries,heldReply})=>({
+      id,sequence,sender,addressee,text,deliveries,heldReply}))};
   if(request.type==="TREEHOUSE_ROOM_INSPECT_GEMINI"){
     if(!room.enabled)return {error:"Start room first"};
     const gem=room.participants.find(p=>p.name==="gemini");

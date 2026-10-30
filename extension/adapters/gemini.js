@@ -89,12 +89,27 @@
         : 'button[aria-label="Send message"], button[aria-label="Send"], button[data-test-id="send-button"]';
       const send = [...document.querySelectorAll(sendSelector)]
         .filter(el => el.getClientRects().length && !el.disabled && el.getAttribute("aria-disabled") !== "true");
-      if (send.length !== 1) return { error: "Unique enabled Send button not verified; draft left for manual review." };
+      const diagnostic = {
+        matchedSendButtons: send.length,
+        candidates: [...document.querySelectorAll('button')].filter(el =>
+          el.getClientRects().length && /send|submit/i.test([
+            el.getAttribute("aria-label"), el.getAttribute("data-test-id"),
+            el.getAttribute("title"), el.textContent?.trim().slice(0, 40)
+          ].filter(Boolean).join(" "))).slice(0, 12).map(el => ({
+            ariaLabel: (el.getAttribute("aria-label") || "").slice(0, 70),
+            testId: (el.getAttribute("data-test-id") || "").slice(0, 70),
+            title: (el.getAttribute("title") || "").slice(0, 70),
+            disabled: Boolean(el.disabled),
+            ariaDisabled: el.getAttribute("aria-disabled"),
+            htmlTag: el.tagName
+          }))
+      };
+      if (send.length !== 1) return { error: "Send control not verified. Draft left untouched for manual send.", diagnostic };
       // Do not use Enter as a fallback; ambiguous UI = stop.
       send[0].click();
       // A synthetic click may be ignored by the host UI. Never equate click() with sending.
       await new Promise(resolve => setTimeout(resolve, 900));
-      if (read().trim()) return { error: "Send click attempted but draft remains in composer. Not confirmed sent; inspect tab. DO NOT retry automatically." };
+      if (read().trim()) return { error: "Send click attempted but draft remains in composer. Not confirmed sent; do not retry automatically.", diagnostic };
       return { ok: true, note: "Composer cleared after Send click; host acceptance still not independently verified." };
     } catch {
       return { error: "Submission failed or uncertain; inspect tab before retrying." };

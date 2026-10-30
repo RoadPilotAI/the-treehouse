@@ -41,6 +41,15 @@ async function roomCommand(request){
     enabled:room.enabled,participants:room.participants,
     messages:room.messages.map(({id,sequence,sender,addressee,text,deliveries})=>({
       id,sequence,sender,addressee,text,deliveries}))};
+  if(request.type==="TREEHOUSE_ROOM_INSPECT_GEMINI"){
+    if(!room.enabled)return {error:"Start room first"};
+    const gem=room.participants.find(p=>p.name==="gemini");
+    if(!gem)return {error:"Gemini participant missing"};
+    try{
+      const candidate=await chrome.tabs.sendMessage(gem.id,{type:"TREEHOUSE_INSPECT_LATEST_REPLY"});
+      return {status:"candidate-only",...candidate};
+    }catch{return {error:"Gemini adapter unavailable; refresh Gemini tab"};}
+  }
   if(request.type==="TREEHOUSE_ROOM_STOP"){
     room.enabled=false;await roomWrite(room);return {ok:true,enabled:false};
   }

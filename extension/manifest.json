@@ -20,8 +20,8 @@
         "https://chat.openai.com/*"
       ],
       "js": [
-        "adapters/chatgpt.js",
         "plain-text.js",
+        "adapters/chatgpt.js",
         "observer.js"
       ],
       "run_at": "document_idle"
@@ -31,8 +31,8 @@
         "https://gemini.google.com/*"
       ],
       "js": [
-        "adapters/gemini.js",
         "plain-text.js",
+        "adapters/gemini.js",
         "observer.js"
       ],
       "run_at": "document_idle"

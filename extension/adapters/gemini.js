@@ -166,6 +166,19 @@
     }
   }
   chrome.runtime.onMessage.addListener((request, _sender, respond) => {
+    if (request?.type === "TREEHOUSE_CAPTURE_LATEST_CANDIDATE") {
+      // Read-only candidate. Only model-response scoped text may be considered.
+      // Do not infer that stopped generation means verified completeness.
+      const replies = [...document.querySelectorAll("model-response")]
+        .filter(el => el.getClientRects().length && !el.closest('rich-textarea, [contenteditable="true"]'));
+      const last = replies.at(-1);
+      const scoped = last?.querySelector(".model-response-text, .markdown, message-content");
+      const text = scoped?.innerText || "";
+      if (!last || !scoped || !text.trim() || text.length > 500)
+        respond({error:"No bounded, model-scoped Gemini reply candidate"});
+      else respond({platform:"gemini",text,source:"model-response",verified:false,
+        completion:"unknown",reason:"Captured from Gemini model-response; held for review"});
+    }
     if (request?.type === "TREEHOUSE_INSPECT_LATEST_REPLY") {
       // Candidate only. Gemini UI markup is not guaranteed stable, and no
       // lifecycle event alone proves completion.

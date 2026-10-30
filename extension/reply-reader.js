@@ -1,20 +1,32 @@
-// One chat response element = one plain-text Treehouse message.
+// One assistant response element = one plain-text Treehouse message.
 (() => {
   const platform=location.hostname==="gemini.google.com"?"gemini":"gpt";
   function replies(){
-    const selector=platform==="gemini"?"model-response":"[data-message-author-role='assistant']";
-    return [...document.querySelectorAll(selector)].filter(el=>el.getClientRects().length);
+    if(platform==="gemini")
+      return [...document.querySelectorAll("model-response")].filter(el=>el.getClientRects().length);
+    // ChatGPT commonly nests the author marker within a conversation turn;
+    // accept either the author-marked element or its enclosing turn, without
+    // assuming that the marker itself has a measurable layout rectangle.
+    const marked=[...document.querySelectorAll('[data-message-author-role="assistant"]')];
+    if(marked.length)return marked;
+    // A narrower fallback than "all turns": only explicitly assistant-labelled turns.
+    return [...document.querySelectorAll(
+      '[data-testid^="conversation-turn-"][data-turn="assistant"], article[data-turn="assistant"]'
+    )];
   }
   function snapshot(){
-    const all=replies();
-    const el=all.at(-1);
-    if(!el)return {count:0,text:""};
-    // Prefer answer content over toolbars and buttons; preserve ordinary paragraphs.
+    const all=replies(),el=all.at(-1);
+    if(!el){
+      return {count:0,text:"",diagnostic: platform==="gpt" ? {
+        authorMarkers:document.querySelectorAll("[data-message-author-role]").length,
+        conversationTurns:document.querySelectorAll('[data-testid^="conversation-turn-"]').length,
+        assistantTurns:document.querySelectorAll('[data-turn="assistant"]').length
+      }:undefined};
+    }
     const body=platform==="gemini"
       ?el.querySelector(".model-response-text, message-content, .markdown")||el
       :el.querySelector(".markdown, [data-message-content], .prose")||el;
-    const text=(body.innerText||"").trim();
-    return {count:all.length,text};
+    return {count:all.length,text:(body.innerText||body.textContent||"").trim()};
   }
   chrome.runtime.onMessage.addListener((request,_sender,respond)=>{
     if(request?.type==="TREEHOUSE_READ_ASSISTANT_REPLY")respond(snapshot());

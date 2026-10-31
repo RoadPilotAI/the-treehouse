@@ -146,3 +146,58 @@ document.querySelector("#seed-stop").addEventListener("click", async () => {
   } catch { seedStatus.textContent = "Stop request failed; reload extension and inspect destination."; }
 });
 refreshSeedControls().catch(() => { seedStatus.textContent = "Coordinator unavailable."; });
+
+
+const roomStatus=document.querySelector("#room-status");
+const roomTranscript=document.querySelector("#room-transcript");
+async function roomRefresh(){
+  const state=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_STATUS"});
+  roomStatus.textContent=state.enabled?"Room open":"Room stopped — "+(state.stopReason||"reason not recorded");
+  roomTranscript.replaceChildren();
+  for(const msg of state.messages||[]){
+    const p=document.createElement("p");
+    const head=document.createElement("strong");
+    head.textContent="#"+msg.sequence+" "+msg.sender.toUpperCase()+" → "+
+      (msg.addressee||"all")+" (broadcast to others)";
+    const content=document.createElement("div");
+    content.textContent=msg.text;
+    const details=document.createElement("small");
+    details.textContent=JSON.stringify(msg.deliveries);
+    p.append(head,content,details);
+    if(msg.heldReply){const held=document.createElement("pre"); held.textContent="HELD GEMINI CANDIDATE (not forwarded):\n"+msg.heldReply.text; const warning=document.createElement("small");warning.textContent=msg.heldReply.note;p.append(held,warning);}
+    roomTranscript.append(p);
+  }
+}
+document.querySelector("#room-start").addEventListener("click",async()=>{
+  roomStatus.textContent=JSON.stringify(await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_START",autoLimit:Number(document.querySelector("#room-limit").value)}));
+  await roomRefresh();
+});
+document.querySelector("#room-stop").addEventListener("click",async()=>{
+  roomStatus.textContent=JSON.stringify(await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_STOP"}));
+});
+document.querySelector("#room-open-send").addEventListener("click",async()=>{
+  const text=document.querySelector("#room-opening").value;
+  if(!text.trim())return;
+  if(!window.confirm("Send opening message to BOTH GPT and Gemini and start bounded automatic replies?"))return;
+  const result=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_OPENING",text});
+  roomStatus.textContent=JSON.stringify(result);
+  if(result.ok)document.querySelector("#room-opening").value="";
+  await roomRefresh();
+});
+document.querySelector("#room-post").addEventListener("click",async()=>{
+  const sender=document.querySelector("#room-sender").value;
+  const text=document.querySelector("#room-text").value;
+  if(!window.confirm("Broadcast this test message from "+sender+" to every OTHER participant? It will submit to the provider."))return;
+  const result=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_POST",sender,text});
+  roomStatus.textContent=JSON.stringify(result);
+  if(result.ok)document.querySelector("#room-text").value="";
+  await roomRefresh();
+});
+document.querySelector("#room-clear").addEventListener("click",async()=>{
+  if(!window.confirm("Clear the Treehouse transcript? Stop the room first. This does not delete messages in GPT or Gemini."))return;
+  const result=await chrome.runtime.sendMessage({type:"TREEHOUSE_ROOM_CLEAR"});
+  await roomRefresh();
+  roomStatus.textContent=result.ok?"Transcript cleared":(result.error||"Clear failed");
+});
+document.querySelector("#room-refresh").addEventListener("click",roomRefresh);
+roomRefresh().catch(()=>{roomStatus.textContent="Room coordinator unavailable";});

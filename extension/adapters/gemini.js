@@ -61,8 +61,8 @@
   // Bounded PR #4 actuation: one user-authorized seed, never an AI reply.
   async function submitSeed(request) {
     const text = request?.text;
-    if (typeof text !== "string" || !text.trim() || text.length > 500)
-      return { error: "Seed must contain 1–500 characters." };
+    if (typeof text !== "string" || !text.trim() || text.length > 12000)
+      return { error: "Message must contain 1–12,000 characters." };
     const selectors = platform === "chatgpt"
       ? ['#prompt-textarea[contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea']
       : ['rich-textarea [contenteditable="true"]', '[contenteditable="true"][role="textbox"]', 'textarea'];
@@ -166,6 +166,35 @@
     }
   }
   chrome.runtime.onMessage.addListener((request, _sender, respond) => {
+    if (request?.type === "TREEHOUSE_CAPTURE_LATEST_CANDIDATE") {
+      // Read-only candidate. Only model-response scoped text may be considered.
+      // Do not infer that stopped generation means verified completeness.
+      const replies = [...document.querySelectorAll("model-response")]
+        .filter(el => el.getClientRects().length && !el.closest('rich-textarea, [contenteditable="true"]'));
+      const last = replies.at(-1);
+      const scoped = last?.querySelector(".model-response-text, .markdown, message-content");
+      const text = scoped?.innerText || "";
+      if (!last || !scoped || !text.trim() || text.length > 500)
+        respond({error:"No bounded, model-scoped Gemini reply candidate"});
+      else respond({platform:"gemini",text,source:"model-response",verified:false,
+        completion:"unknown",reason:"Captured from Gemini model-response; held for review"});
+    }
+    if (request?.type === "TREEHOUSE_INSPECT_LATEST_REPLY") {
+      // Candidate only. Gemini UI markup is not guaranteed stable, and no
+      // lifecycle event alone proves completion.
+      const selectors = ['model-response', '[data-test-id="model-response"]',
+        '.model-response-text', 'message-content', '.markdown'];
+      const found = [...new Set(selectors.flatMap(q => [...document.querySelectorAll(q)]))]
+        .filter(el => el.getClientRects().length && !el.closest('rich-textarea, [contenteditable="true"]'));
+      const candidates = found.slice(-8).map(el => ({
+        tag:el.tagName.toLowerCase(), classes:[...el.classList].slice(0,4),
+        textLength:(el.innerText||"").length,
+        nestedReplyCandidate:Boolean(el.closest('model-response')),
+        isWithinComposer:Boolean(el.closest('rich-textarea'))
+      }));
+      respond({platform, candidateCount:found.length, candidates,
+        verified:false, reason:"Candidate structure only; authorship and completion unverified"});
+    }
     if (request?.type === "TREEHOUSE_STATUS") respond(probe());
     if (request?.type === "TREEHOUSE_SUBMIT_SEED") {
       submitSeed(request).then(respond).catch(() => respond({ error: "Submission status uncertain; inspect destination." }));

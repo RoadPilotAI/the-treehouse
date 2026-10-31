@@ -1,3 +1,4 @@
+importScripts("common-room.js");
 // PR #4: bounded, extension-owned single-seed session controller.
 // Deliberately halts on every unknown/interrupt lifecycle end. No auto-capture or relay.
 let session = null;
@@ -23,6 +24,11 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!message || typeof message !== "object") return;
   // Control actions are accepted only from extension UI, never page content scripts.
   if (["TREEHOUSE_SESSION_STATUS", "TREEHOUSE_SESSION_STOP", "TREEHOUSE_SESSION_START"].includes(message.type) && (sender.tab || sender.id !== chrome.runtime.id)) return;
+  if (typeof message.type==="string" && message.type.startsWith("TREEHOUSE_ROOM_")) {
+    if(sender.tab || sender.id!==chrome.runtime.id)return;
+    roomCommand(message).then(respond).catch(()=>respond({error:"Common room operation failed"}));
+    return true;
+  }
   if (message.type === "TREEHOUSE_SESSION_STATUS") { respond(status()); return; }
   if (message.type === "TREEHOUSE_SESSION_STOP") {
     void halt("Stopped by user.");
@@ -82,6 +88,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     sequence: message.sequence,
     elapsedMs: Number.isFinite(message.elapsedMs) ? Math.min(Math.max(0, Math.round(message.elapsedMs)), 3600000) : null };
   console.info("[Treehouse observation]", record);
+  if (message.event==="RESPONSE_STATUS_UNKNOWN") {
+    void roomRelayReply(sender.tab.id,platform).catch(err =>
+      console.warn("[Treehouse room] Reply relay unavailable", String(err)));
+  }
   if (session && sender.tab.id === session.destinationTabId &&
     ["RESPONSE_INTERRUPTED", "RESPONSE_STATUS_UNKNOWN"].includes(message.event) &&
     session.state === "awaiting-end") void halt(message.event + ": no automatic relay permitted.");

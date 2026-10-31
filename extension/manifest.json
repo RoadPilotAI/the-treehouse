@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Treehouse — Manual Transport Prototype",
-  "version": "0.3.1",
-  "description": "Experimental user-authorized one-seed actuation; no autonomous reply relay.",
+  "version": "0.5.1",
+  "description": "Experimental automatic response relay in bounded two-participant common room",
   "permissions": [
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "background": {
     "service_worker": "background.js"
@@ -22,7 +23,8 @@
       "js": [
         "plain-text.js",
         "adapters/chatgpt.js",
-        "observer.js"
+        "observer.js",
+        "reply-reader.js"
       ],
       "run_at": "document_idle"
     },
@@ -33,7 +35,8 @@
       "js": [
         "plain-text.js",
         "adapters/gemini.js",
-        "observer.js"
+        "observer.js",
+        "reply-reader.js"
       ],
       "run_at": "document_idle"
     }
